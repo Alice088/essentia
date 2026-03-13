@@ -2,19 +2,33 @@ package main
 
 import (
 	"Alice088/ai-greed/pkg/env"
-	"Alice088/ai-greed/pkg/logging"
+	"io"
 	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	slogchi "github.com/samber/slog-chi"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 func main() {
 	cfg := env.Load("./.env")
-	file := logging.CreateLogFile()
-	logger := slog.New(slog.NewJSONHandler(file, nil))
+
+	logRotator := &lumberjack.Logger{
+		Filename:   "./logs/logs.log",
+		MaxSize:    10,
+		MaxBackups: 5,
+		MaxAge:     30,
+		Compress:   true,
+	}
+
+	mw := slog.NewJSONHandler(
+		io.MultiWriter(os.Stdout, logRotator),
+		nil,
+	)
+	logger := slog.New(mw)
 
 	r := chi.NewRouter()
 	r.Use(slogchi.New(logger))
@@ -28,5 +42,6 @@ func main() {
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("welcome"))
 	})
+
 	http.ListenAndServe(":3000", r)
 }
