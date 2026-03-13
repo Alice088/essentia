@@ -19,7 +19,9 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(slogchi.New(logger))
 	r.Use(middleware.Recoverer)
-	// r.Use(middleware.Compress())
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Compress(5))
 	r.Use(middleware.Throttle(cfg.MAXUSER))
 	r.Use(middleware.Timeout(cfg.TIMEOUT))
 
