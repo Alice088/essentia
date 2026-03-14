@@ -1,0 +1,14 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+  external_labels:
+    service: pdf-summarize
+    environment: dev
+scrape_configs:
+  - job_name: pdf-service
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets:
+          - host.docker.internal:3000
+    scrape_timeout: 4s

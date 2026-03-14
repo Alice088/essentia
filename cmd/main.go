@@ -4,6 +4,7 @@ import (
 	httpx "Alice088/pdf-summarize/internal/http"
 	v1 "Alice088/pdf-summarize/internal/http/v1"
 	"Alice088/pdf-summarize/pkg/env"
+	"Alice088/pdf-summarize/prometheus"
 
 	"io"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"os"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -33,8 +35,10 @@ func main() {
 
 	r := chi.NewRouter()
 	httpx.UpMiddlewares(r, cfg, logger)
+	prometheus.UpMetrics()
 
 	r.Mount("/v1", v1.Routes(logger))
+	r.Handle("/metrics", promhttp.Handler())
 
 	http.ListenAndServe(":3000", r)
 }
