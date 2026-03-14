@@ -7,8 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-
-	"github.com/google/uuid"
 )
 
 func Load(logger *slog.Logger) http.HandlerFunc {
@@ -45,9 +43,7 @@ func Load(logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		jobID := uuid.New()
-		
-
+		// jobID := uuid.New()
 
 	}
 }
