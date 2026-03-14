@@ -34,7 +34,7 @@ func main() {
 	r := chi.NewRouter()
 	httpx.UpMiddlewares(r, cfg, logger)
 
-	r.Mount("/v1", v1.Routes())
+	r.Mount("/v1", v1.Routes(logger))
 
 	http.ListenAndServe(":3000", r)
 }
