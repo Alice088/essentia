@@ -7,14 +7,11 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"time"
 )
 
 func Load(logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
-
-		time.Sleep(15 * time.Second)
 
 		header := make([]byte, 5)
 		if _, err := io.ReadFull(r.Body, header); err != nil {
