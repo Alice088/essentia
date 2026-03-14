@@ -12,6 +12,6 @@ func PrometheusHttpRequestTotal(next http.Handler) http.Handler {
 			r.URL.Path,
 		).Inc()
 
-		next.ServeHTTP(w, r.WithContext(r.Context()))
+		next.ServeHTTP(w, r)
 	})
 }

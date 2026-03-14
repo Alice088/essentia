@@ -8,4 +8,5 @@ import (
 
 func UpMetrics() {
 	prometheus.MustRegister(metrics.HttpRequestsTotal)
+	prometheus.MustRegister(metrics.HttpRequestsInFlight)
 }

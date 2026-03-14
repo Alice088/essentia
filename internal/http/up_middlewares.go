@@ -24,6 +24,8 @@ func UpMiddlewares(r *chi.Mux, cfg env.Config, logger *slog.Logger) {
 	r.Use(middleware.RequestSize(size.MB5))
 	r.Use(middleware.AllowContentEncoding(cfg.AllowContentEncoding...))
 	r.Use(middlewarex.PrometheusHttpRequestTotal)
+	r.Use(middlewarex.HttpRequestsInFlight)
+
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins: cfg.Origins,
 		AllowedMethods: []string{
