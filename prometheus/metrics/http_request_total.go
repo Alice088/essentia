@@ -7,5 +7,5 @@ var HttpRequestsTotal = prometheus.NewCounterVec(
 		Name: "http_requests_total",
 		Help: "Total number of HTTP requests",
 	},
-	[]string{"method", "endpoint"},
+	[]string{"method", "endpoint", "status"},
 )
