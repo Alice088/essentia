@@ -1,8 +1,8 @@
 package http
 
 import (
-	"Alice088/ai-greed/pkg/env"
-	"Alice088/ai-greed/pkg/size"
+	"Alice088/pdf-summarize/pkg/env"
+	"Alice088/pdf-summarize/pkg/size"
 	"log/slog"
 
 	"github.com/go-chi/chi/v5"

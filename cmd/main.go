@@ -1,9 +1,9 @@
 package main
 
 import (
-	httpx "Alice088/ai-greed/internal/http"
-	v1 "Alice088/ai-greed/internal/http/v1"
-	"Alice088/ai-greed/pkg/env"
+	httpx "Alice088/pdf-summarize/internal/http"
+	v1 "Alice088/pdf-summarize/internal/http/v1"
+	"Alice088/pdf-summarize/pkg/env"
 
 	"io"
 	"log/slog"

@@ -1,4 +1,4 @@
-module Alice088/ai-greed
+module Alice088/pdf-summarize
 
 go 1.26.0
 
