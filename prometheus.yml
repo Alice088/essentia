@@ -10,5 +10,5 @@ scrape_configs:
     scheme: http
     static_configs:
       - targets:
-          - host.docker.internal:3000
+          - "localhost:3000"
     scrape_timeout: 4s

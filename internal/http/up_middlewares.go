@@ -5,6 +5,8 @@ import (
 	"Alice088/pdf-summarize/pkg/size"
 	"log/slog"
 
+	middlewarex "Alice088/pdf-summarize/internal/http/middleware"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -21,6 +23,7 @@ func UpMiddlewares(r *chi.Mux, cfg env.Config, logger *slog.Logger) {
 	r.Use(middleware.Timeout(cfg.Timeout))
 	r.Use(middleware.RequestSize(size.MB5))
 	r.Use(middleware.AllowContentEncoding(cfg.AllowContentEncoding...))
+	r.Use(middlewarex.PrometheusHttpRequestTotal)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins: cfg.Origins,
 		AllowedMethods: []string{
@@ -38,4 +41,5 @@ func UpMiddlewares(r *chi.Mux, cfg env.Config, logger *slog.Logger) {
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
+
 }
