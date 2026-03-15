@@ -19,16 +19,16 @@ func UpMiddlewares(r *chi.Mux, cfg env.Config, logger *slog.Logger) {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Compress(5))
-	r.Use(middleware.Throttle(cfg.MaxUser))
-	r.Use(middleware.Timeout(cfg.Timeout))
+	r.Use(middleware.Throttle(cfg.HTTP.MaxUser))
+	r.Use(middleware.Timeout(cfg.HTTP.Timeout))
 	r.Use(middleware.RequestSize(size.MB5))
-	r.Use(middleware.AllowContentEncoding(cfg.AllowContentEncoding...))
+	r.Use(middleware.AllowContentEncoding(cfg.HTTP.AllowContentEncoding...))
 	r.Use(middlewarex.PrometheusHttpRequestTotal)
 	r.Use(middlewarex.HttpRequestsInFlight)
 	r.Use(middlewarex.PrometheusHttpRequestTotalDuration)
 
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins: cfg.Origins,
+		AllowedOrigins: cfg.HTTP.Origins,
 		AllowedMethods: []string{
 			"GET",
 			"POST",

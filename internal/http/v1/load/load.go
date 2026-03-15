@@ -4,22 +4,31 @@ import (
 	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
 	httpx "Alice088/pdf-summarize/pkg/http"
 	"Alice088/pdf-summarize/pkg/size"
+	"context"
 	"errors"
 	"io"
 	"log/slog"
 	"net/http"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/minio/minio-go/v7"
 )
 
 type Handler struct {
 	Logger  *slog.Logger
 	Queries *queries.Queries
+	Timeout time.Duration
+	MinIO   *minio.Client
 }
 
-func NewHandler(logger *slog.Logger, queries *queries.Queries) Handler {
+func NewHandler(logger *slog.Logger, queries *queries.Queries, timeout time.Duration, minio *minio.Client) Handler {
 	return Handler{
 		Logger:  logger,
 		Queries: queries,
-		Timeout
+		Timeout: timeout,
+		MinIO:   minio,
 	}
 }
 
@@ -57,10 +66,15 @@ func (h *Handler) Load() http.HandlerFunc {
 			return
 		}
 
-		jobID := uuid.New()
+		ctx, cancel := context.WithTimeout(context.Background(), h.Timeout)
+		defer cancel()
 
-
-		h.Queries.CreateJob()
+		h.Queries.CreateJob(ctx, queries.CreateJobParams{
+			ID: pgtype.UUID{
+				Bytes: uuid.New(),
+				Valid: true,
+			},
+		})
 
 	}
 }

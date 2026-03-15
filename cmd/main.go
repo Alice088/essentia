@@ -15,6 +15,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -36,7 +38,7 @@ func main() {
 	)
 	logger := slog.New(mw)
 
-	conn, err := pgx.Connect(context.Background(), cfg.DatabaseURL)
+	conn, err := pgx.Connect(context.Background(), cfg.DB.DatabaseURL)
 	if err != nil {
 		logger.Error("Unable to connect to database", "error", err.Error())
 		os.Exit(1)
@@ -45,11 +47,21 @@ func main() {
 
 	q := queries.New(conn)
 
+	// Initialize minio client object.
+	minioClient, err := minio.New(cfg.MinIO.Endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(cfg.MinIO.AccessKey, cfg.MinIO.SecretKey, ""),
+		Secure: cfg.MinIO.SSL,
+	})
+	if err != nil {
+		logger.Error("Unable to connect to minio", "error", err.Error())
+		os.Exit(1)
+	}
+
 	r := chi.NewRouter()
 	httpx.UpMiddlewares(r, cfg, logger)
 	prometheus.UpMetrics()
 
-	r.Mount("/v1", v1.Routes(logger, q))
+	r.Mount("/v1", v1.Routes(logger, q, cfg.HTTP.Timeout, minioClient))
 	r.Handle("/metrics", promhttp.Handler())
 
 	http.ListenAndServe(":3000", r)
