@@ -14,7 +14,10 @@ import (
 )
 
 func UpMiddlewares(r *chi.Mux, cfg env.Config, logger *slog.Logger) {
-	r.Use(slogchi.New(logger))
+	r.Use(slogchi.NewWithFilters(
+		logger,
+		slogchi.IgnorePath("/metrics"),
+	))
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
