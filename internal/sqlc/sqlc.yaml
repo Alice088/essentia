@@ -6,6 +6,6 @@ sql:
     database:
     gen:
       go:
-        package: "pdf_summarize"
+        package: "queries"
         out: "postgresql"
         sql_package: "pgx/v5"

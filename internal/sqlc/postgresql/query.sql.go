@@ -3,69 +3,170 @@
 //   sqlc v1.30.0
 // source: query.sql
 
-package pdf_summarize
+package queries
 
 import (
 	"context"
-	"database/sql"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createAuthor = `-- name: CreateAuthor :execresult
-INSERT INTO authors (name, bio) VALUES ($1, $2)
+const createJob = `-- name: CreateJob :one
+INSERT INTO jobs (id, object_key) VALUES ($1, $2) RETURNING id, status, object_key, error, created_at, updated_at
 `
 
-type CreateAuthorParams struct {
-	Name string
-	Bio  sql.NullString
+type CreateJobParams struct {
+	ID        pgtype.UUID
+	ObjectKey string
 }
 
-func (q *Queries) CreateAuthor(ctx context.Context, arg CreateAuthorParams) (sql.Result, error) {
-	return q.db.ExecContext(ctx, createAuthor, arg.Name, arg.Bio)
-}
-
-const deleteAuthor = `-- name: DeleteAuthor :exec
-DELETE FROM authors WHERE id = $1
-`
-
-func (q *Queries) DeleteAuthor(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteAuthor, id)
-	return err
-}
-
-const getAuthor = `-- name: GetAuthor :one
-SELECT id, name, bio FROM authors WHERE id = $1 LIMIT 1
-`
-
-func (q *Queries) GetAuthor(ctx context.Context, id int64) (Author, error) {
-	row := q.db.QueryRowContext(ctx, getAuthor, id)
-	var i Author
-	err := row.Scan(&i.ID, &i.Name, &i.Bio)
+func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (Job, error) {
+	row := q.db.QueryRow(ctx, createJob, arg.ID, arg.ObjectKey)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.Status,
+		&i.ObjectKey,
+		&i.Error,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
 	return i, err
 }
 
-const listAuthors = `-- name: ListAuthors :many
-SELECT id, name, bio FROM authors ORDER BY name
+const deleteJob = `-- name: DeleteJob :exec
+DELETE FROM jobs WHERE id = $1
 `
 
-func (q *Queries) ListAuthors(ctx context.Context) ([]Author, error) {
-	rows, err := q.db.QueryContext(ctx, listAuthors)
+func (q *Queries) DeleteJob(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteJob, id)
+	return err
+}
+
+const getJob = `-- name: GetJob :one
+SELECT id, status, object_key, error, created_at, updated_at FROM jobs WHERE id = $1
+`
+
+func (q *Queries) GetJob(ctx context.Context, id pgtype.UUID) (Job, error) {
+	row := q.db.QueryRow(ctx, getJob, id)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.Status,
+		&i.ObjectKey,
+		&i.Error,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getJobByObjectKey = `-- name: GetJobByObjectKey :one
+SELECT id, status, object_key, error, created_at, updated_at FROM jobs WHERE object_key = $1
+`
+
+func (q *Queries) GetJobByObjectKey(ctx context.Context, objectKey string) (Job, error) {
+	row := q.db.QueryRow(ctx, getJobByObjectKey, objectKey)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.Status,
+		&i.ObjectKey,
+		&i.Error,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getNextUploadedJob = `-- name: GetNextUploadedJob :one
+SELECT id, status, object_key, error, created_at, updated_at
+FROM jobs
+WHERE
+    status = 'uploaded'
+ORDER BY created_at
+LIMIT 1 FOR
+UPDATE SKIP LOCKED
+`
+
+func (q *Queries) GetNextUploadedJob(ctx context.Context) (Job, error) {
+	row := q.db.QueryRow(ctx, getNextUploadedJob)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.Status,
+		&i.ObjectKey,
+		&i.Error,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listJobs = `-- name: ListJobs :many
+SELECT id, status, object_key, error, created_at, updated_at FROM jobs ORDER BY created_at DESC LIMIT $1 OFFSET $2
+`
+
+type ListJobsParams struct {
+	Limit  int32
+	Offset int32
+}
+
+func (q *Queries) ListJobs(ctx context.Context, arg ListJobsParams) ([]Job, error) {
+	rows, err := q.db.Query(ctx, listJobs, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Author
+	var items []Job
 	for rows.Next() {
-		var i Author
-		if err := rows.Scan(&i.ID, &i.Name, &i.Bio); err != nil {
+		var i Job
+		if err := rows.Scan(
+			&i.ID,
+			&i.Status,
+			&i.ObjectKey,
+			&i.Error,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	return items, nil
+}
+
+const setJobCompleted = `-- name: SetJobCompleted :exec
+UPDATE jobs SET status = 'completed', error = NULL WHERE id = $1
+`
+
+func (q *Queries) SetJobCompleted(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, setJobCompleted, id)
+	return err
+}
+
+const setJobFailed = `-- name: SetJobFailed :exec
+UPDATE jobs SET status = 'failed', error = $2 WHERE id = $1
+`
+
+type SetJobFailedParams struct {
+	ID    pgtype.UUID
+	Error pgtype.Text
+}
+
+func (q *Queries) SetJobFailed(ctx context.Context, arg SetJobFailedParams) error {
+	_, err := q.db.Exec(ctx, setJobFailed, arg.ID, arg.Error)
+	return err
+}
+
+const setJobProcessing = `-- name: SetJobProcessing :exec
+UPDATE jobs SET status = 'processing' WHERE id = $1
+`
+
+func (q *Queries) SetJobProcessing(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, setJobProcessing, id)
+	return err
 }
