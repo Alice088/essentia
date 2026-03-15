@@ -1,3 +1,4 @@
 .env
 go.sum
 logs/*  
+sqlc.yaml

@@ -8,4 +8,5 @@ type Config struct {
 	Timeout              time.Duration `env:"TIMEOUT,required"`
 	AllowContentEncoding []string      `env:"ALLOW_CONTENT_ENCODING,required"`
 	Origins              []string      `env:"ORIGINS,required"`
+	DatabaseURL          string        `env:"DATABASE_URL,required"`
 }

@@ -3,8 +3,9 @@ package main
 import (
 	httpx "Alice088/pdf-summarize/internal/http"
 	v1 "Alice088/pdf-summarize/internal/http/v1"
+	"Alice088/pdf-summarize/internal/prometheus"
 	"Alice088/pdf-summarize/pkg/env"
-	"Alice088/pdf-summarize/prometheus"
+	"context"
 
 	"io"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"os"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -32,6 +34,13 @@ func main() {
 		nil,
 	)
 	logger := slog.New(mw)
+
+	conn, err := pgx.Connect(context.Background(), cfg.DatabaseURL)
+	if err != nil {
+		logger.Error("Unable to connect to database", "error", err.Error())
+		os.Exit(1)
+	}
+	defer conn.Close(context.Background())
 
 	r := chi.NewRouter()
 	httpx.UpMiddlewares(r, cfg, logger)

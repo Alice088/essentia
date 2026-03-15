@@ -1,7 +1,7 @@
 package prometheus
 
 import (
-	"Alice088/pdf-summarize/prometheus/metrics"
+	"Alice088/pdf-summarize/internal/prometheus/metrics"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
