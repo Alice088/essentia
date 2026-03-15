@@ -11,10 +11,10 @@ import (
 	"github.com/minio/minio-go/v7"
 )
 
-func Routes(logger *slog.Logger, queries *queries.Queries, timeout time.Duration, minio *minio.Client) chi.Router {
+func Routes(logger *slog.Logger, queries *queries.Queries, timeout time.Duration, minio *minio.Client, bucketName string) chi.Router {
 	r := chi.NewRouter()
 
-	loadHandler := load.NewHandler(logger, queries, timeout, minio)
+	loadHandler := load.NewHandler(logger, queries, timeout, minio, bucketName)
 
 	r.With(middleware.AllowContentType("application/pdf")).Post("/load", loadHandler.Load())
 	return r

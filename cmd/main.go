@@ -7,6 +7,7 @@ import (
 	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
 	"Alice088/pdf-summarize/pkg/env"
 	"context"
+	"time"
 
 	"io"
 	"log/slog"
@@ -47,7 +48,6 @@ func main() {
 
 	q := queries.New(conn)
 
-	// Initialize minio client object.
 	minioClient, err := minio.New(cfg.MinIO.Endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.MinIO.AccessKey, cfg.MinIO.SecretKey, ""),
 		Secure: cfg.MinIO.SSL,
@@ -57,11 +57,23 @@ func main() {
 		os.Exit(1)
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	err = minioClient.MakeBucket(ctx, cfg.MinIO.PDFBucket, minio.MakeBucketOptions{Region: cfg.MinIO.Location})
+	if err != nil {
+		exists, errBucketExists := minioClient.BucketExists(ctx, cfg.MinIO.PDFBucket)
+		if errBucketExists != nil || !exists {
+			logger.Error("Failed to check bucket exist or bucket doesn't exist", "error", err.Error())
+			os.Exit(1)
+		}
+	}
+
 	r := chi.NewRouter()
 	httpx.UpMiddlewares(r, cfg, logger)
 	prometheus.UpMetrics()
 
-	r.Mount("/v1", v1.Routes(logger, q, cfg.HTTP.Timeout, minioClient))
+	r.Mount("/v1", v1.Routes(logger, q, cfg.HTTP.Timeout, minioClient, cfg.MinIO.PDFBucket))
 	r.Handle("/metrics", promhttp.Handler())
 
 	http.ListenAndServe(":3000", r)

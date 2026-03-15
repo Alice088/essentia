@@ -25,4 +25,6 @@ type minio struct {
 	AccessKey string `env:"ACCESS_KEY,required"`
 	SecretKey string `env:"SECRET_KEY,required"`
 	SSL       bool   `env:"SSL,required"`
+	Location  string `env:"LOCATION,required"`
+	PDFBucket string `env:"PDF_BUCKET,required"`
 }
