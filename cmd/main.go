@@ -7,6 +7,8 @@ import (
 	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
 	"Alice088/pdf-summarize/pkg/env"
 	"context"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"io"
@@ -68,6 +70,10 @@ func main() {
 			os.Exit(1)
 		}
 	}
+
+	ctx, stop := signal.NotifyContext(
+		context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	r := chi.NewRouter()
 	httpx.UpMiddlewares(r, cfg, logger)
