@@ -1,6 +1,7 @@
-package v1
+package load
 
 import (
+	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
 	httpx "Alice088/pdf-summarize/pkg/http"
 	"Alice088/pdf-summarize/pkg/size"
 	"errors"
@@ -9,7 +10,20 @@ import (
 	"net/http"
 )
 
-func Load(logger *slog.Logger) http.HandlerFunc {
+type Handler struct {
+	Logger  *slog.Logger
+	Queries *queries.Queries
+}
+
+func NewHandler(logger *slog.Logger, queries *queries.Queries) Handler {
+	return Handler{
+		Logger:  logger,
+		Queries: queries,
+		Timeout
+	}
+}
+
+func (h *Handler) Load() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 
@@ -43,7 +57,10 @@ func Load(logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		// jobID := uuid.New()
+		jobID := uuid.New()
+
+
+		h.Queries.CreateJob()
 
 	}
 }

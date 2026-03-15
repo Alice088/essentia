@@ -4,6 +4,7 @@ import (
 	httpx "Alice088/pdf-summarize/internal/http"
 	v1 "Alice088/pdf-summarize/internal/http/v1"
 	"Alice088/pdf-summarize/internal/prometheus"
+	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
 	"Alice088/pdf-summarize/pkg/env"
 	"context"
 
@@ -42,11 +43,13 @@ func main() {
 	}
 	defer conn.Close(context.Background())
 
+	q := queries.New(conn)
+
 	r := chi.NewRouter()
 	httpx.UpMiddlewares(r, cfg, logger)
 	prometheus.UpMetrics()
 
-	r.Mount("/v1", v1.Routes(logger))
+	r.Mount("/v1", v1.Routes(logger, q))
 	r.Handle("/metrics", promhttp.Handler())
 
 	http.ListenAndServe(":3000", r)
