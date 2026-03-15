@@ -19,10 +19,12 @@ func newTestRouter(handler http.HandlerFunc) http.Handler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	cfg := env.Config{
-		MaxUser:              5,
-		Timeout:              5 * time.Second,
-		Origins:              []string{"http://localhost"},
-		AllowContentEncoding: []string{"gzip", "identity"},
+		HTTP: env.HTTP{
+			MaxUser:              5,
+			Timeout:              5 * time.Second,
+			Origins:              []string{"http://localhost"},
+			AllowContentEncoding: []string{"gzip", "identity"},
+		},
 	}
 
 	r := chi.NewRouter()
