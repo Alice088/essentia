@@ -1,0 +1,11 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "query.sql"
+    schema: "schema.sql"
+    database:
+    gen:
+      go:
+        package: "pdf_summarize"
+        out: "postgresql"
+        sql_package: "pgx/v5"
