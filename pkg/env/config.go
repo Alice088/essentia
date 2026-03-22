@@ -32,4 +32,5 @@ type MinIO struct {
 
 type Workers struct {
 	ContextTimeout time.Duration `env:"WORKERS_CONTEXT_TIMEOUT,required"`
+	WorkerPoolMax  int           `env:"WORKERS_WORKER_POOL_MAX,required"`
 }
