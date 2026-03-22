@@ -10,11 +10,11 @@ type Config struct {
 }
 
 type HTTP struct {
-	MaxUser              int           `env:"MAX_USERS,required"`
-	Timeout              time.Duration `env:"TIMEOUT,required"`
-	AllowContentEncoding []string      `env:"ALLOW_CONTENT_ENCODING,required"`
-	Origins              []string      `env:"ORIGINS,required"`
-	Port                 string        `env:"PORT,required"`
+	MaxUser              int           `env:"HTTP_MAX_USERS,required"`
+	Timeout              time.Duration `env:"HTTP_TIMEOUT,required"`
+	AllowContentEncoding []string      `env:"HTTP_ALLOW_CONTENT_ENCODING,required"`
+	Origins              []string      `env:"HTTP_ORIGINS,required"`
+	Port                 string        `env:"HTTP_PORT,required"`
 }
 
 type DB struct {
@@ -28,4 +28,8 @@ type MinIO struct {
 	SSL       bool   `env:"MINIO_SSL,required"`
 	Location  string `env:"MINIO_LOCATION,required"`
 	PDFBucket string `env:"MINIO_PDF_BUCKET,required"`
+}
+
+type Workers struct {
+	ContextTimeout time.Duration `env:"WORKERS_CONTEXT_TIMEOUT,required"`
 }
