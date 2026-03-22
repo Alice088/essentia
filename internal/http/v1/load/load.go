@@ -17,26 +17,29 @@ import (
 )
 
 type Handler struct {
-	Logger     *slog.Logger
-	Queries    *queries.Queries
-	Timeout    time.Duration
-	MinIO      *minio.Client
-	BucketName string
+	Logger  *slog.Logger
+	Queries *queries.Queries
+	Timeout time.Duration
+	MinIO   *minio.Client
 }
 
-func NewHandler(logger *slog.Logger, queries *queries.Queries, timeout time.Duration, minio *minio.Client, bucketName string) Handler {
+func NewHandler(logger *slog.Logger, queries *queries.Queries, timeout time.Duration, minio *minio.Client) Handler {
 	return Handler{
-		Logger:     logger,
-		Queries:    queries,
-		Timeout:    timeout,
-		MinIO:      minio,
-		BucketName: bucketName,
+		Logger:  logger,
+		Queries: queries,
+		Timeout: timeout,
+		MinIO:   minio,
 	}
 }
 
 func (h *Handler) Load() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func(Body io.ReadCloser) {
+			err := Body.Close()
+			if err != nil {
+				h.Logger.Error("Failed to close body", "error", err)
+			}
+		}(r.Body)
 
 		if r.ContentLength > size.MB5 {
 			httpx.HttpResponse(w, http.StatusRequestEntityTooLarge, map[string]string{
@@ -68,7 +71,7 @@ func (h *Handler) Load() http.HandlerFunc {
 		objectSize := r.ContentLength
 		if objectSize <= 0 {
 			objectSize = -1
-			h.Logger.Error("zero-byte size pdf file")
+			h.Logger.Error("Zero-byte size pdf file")
 		}
 
 		pdfUUID := uuid.New()
@@ -78,7 +81,7 @@ func (h *Handler) Load() http.HandlerFunc {
 
 		_, err := h.MinIO.PutObject(
 			ctx,
-			h.BucketName,
+			"pdf",
 			pdfUUID.String()+".pdf",
 			reader,
 			objectSize,
@@ -116,7 +119,7 @@ func (h *Handler) Load() http.HandlerFunc {
 
 			ctx, cancel = context.WithTimeout(r.Context(), h.Timeout)
 			defer cancel()
-			if err := h.MinIO.RemoveObject(ctx, h.BucketName, pdfUUID.String()+".pdf", minio.RemoveObjectOptions{}); err != nil {
+			if err = h.MinIO.RemoveObject(ctx, "pdf", pdfUUID.String()+".pdf", minio.RemoveObjectOptions{}); err != nil {
 				h.Logger.Error("Failed to remove object during failed create job", "error", err.Error())
 			}
 			return
@@ -131,14 +134,18 @@ func (h *Handler) Load() http.HandlerFunc {
 
 			ctx, cancel = context.WithTimeout(r.Context(), h.Timeout)
 			defer cancel()
-			if err := h.MinIO.RemoveObject(ctx, h.BucketName, pdfUUID.String()+".pdf", minio.RemoveObjectOptions{}); err != nil {
+			if err = h.MinIO.RemoveObject(ctx, "pdf", pdfUUID.String()+".pdf", minio.RemoveObjectOptions{}); err != nil {
 				h.Logger.Error("Failed to remove object during compare job id", "error", err.Error())
 			}
 
 			ctx, cancel = context.WithTimeout(r.Context(), h.Timeout)
 			defer cancel()
-			h.Queries.DeleteJob(ctx, job.ID)
-			if err := h.MinIO.RemoveObject(ctx, h.BucketName, pdfUUID.String()+".pdf", minio.RemoveObjectOptions{}); err != nil {
+			err = h.Queries.DeleteJob(ctx, job.ID)
+			if err != nil {
+				h.Logger.Error("Failed to delete job", "error", err.Error())
+			}
+
+			if err := h.MinIO.RemoveObject(ctx, "pdf", pdfUUID.String()+".pdf", minio.RemoveObjectOptions{}); err != nil {
 				h.Logger.Error("Failed to remove object during compare job id", "error", err.Error())
 			}
 			return

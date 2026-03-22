@@ -153,11 +153,3 @@ SET status = 'pending',
     error = NULL
 WHERE id = $1
   AND status = 'failed';
-
--- name: RejectJob :exec
-UPDATE jobs
-SET status = 'rejected',
-    error = $2,
-    attempts = attempts + 1
-WHERE id = $1
-  AND status NOT IN ('completed', 'rejected');

@@ -2,9 +2,6 @@
 CREATE TYPE job_stage AS ENUM (
     'uploaded',
 
-    'scanning',
-    'scanned',
-
     'parsing',
     'parsed',
 
@@ -21,7 +18,7 @@ CREATE TYPE job_stage AS ENUM (
     'completed'
 );
 
-CREATE TYPE work_status AS ENUM ('pending', 'processing', 'completed', 'failed', 'rejected');
+CREATE TYPE work_status AS ENUM ('pending', 'processing', 'completed', 'failed');
 
 CREATE TABLE jobs (
     id UUID PRIMARY KEY,
