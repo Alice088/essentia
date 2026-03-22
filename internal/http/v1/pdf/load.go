@@ -2,7 +2,7 @@ package pdf
 
 import (
 	"Alice088/pdf-summarize/internal/dependencies"
-	"Alice088/pdf-summarize/internal/service"
+	pdfservice "Alice088/pdf-summarize/internal/service"
 	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
 	httpx "Alice088/pdf-summarize/pkg/http"
 	"Alice088/pdf-summarize/pkg/http/pdf"
@@ -18,10 +18,10 @@ type Handler struct {
 	Queries    *queries.Queries
 	Timeout    time.Duration
 	MinIO      *minio.Client
-	PDFService service.PDFService
+	PDFService pdfservice.PDFService
 }
 
-func NewHandler(appDeps dependencies.AppDeps, serv service.PDFService) Handler {
+func NewHandler(appDeps dependencies.AppDeps, serv pdfservice.PDFService) Handler {
 	return Handler{
 		Logger:     appDeps.Logger,
 		Queries:    appDeps.Queries,

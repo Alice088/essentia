@@ -12,21 +12,26 @@ import (
 	"github.com/minio/minio-go/v7"
 )
 
-type PDFService struct {
+//go:generate mockery --name=PDFService --output=./mocks --outpkg=mocks
+type PDFService interface {
+	CreateJob(ctx context.Context, r io.Reader, size int64) (uuid.UUID, error)
+}
+
+type pdfService struct {
 	MinIO   *minio.Client
 	Queries *queries.Queries
 	Logger  *slog.Logger
 }
 
-func NewPDFService(appDeps dependencies.AppDeps) PDFService {
-	return PDFService{
+func NewService(appDeps dependencies.AppDeps) PDFService {
+	return &pdfService{
 		MinIO:   appDeps.MinIO,
 		Queries: appDeps.Queries,
 		Logger:  appDeps.Logger,
 	}
 }
 
-func (s *PDFService) CreateJob(
+func (s *pdfService) CreateJob(
 	ctx context.Context,
 	reader io.Reader,
 	size int64,
