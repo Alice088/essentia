@@ -14,6 +14,6 @@ func Routes(appDeps dependencies.AppDeps) chi.Router {
 
 	pdfHandler := pdf.NewHandler(appDeps, pdfservice.NewService(appDeps))
 
-	r.With(middleware.AllowContentType("application/pdf")).Post("pdf/load", pdfHandler.Load())
+	r.With(middleware.AllowContentType("application/pdf")).Post("/pdf/load", pdfHandler.Load())
 	return r
 }
