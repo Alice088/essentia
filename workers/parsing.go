@@ -7,8 +7,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
-	"strings"
 
 	"github.com/ledongthuc/pdf"
 	"github.com/minio/minio-go/v7"
@@ -18,22 +18,10 @@ import (
 // - Добавить проверку что если это не первая попытка попытаться взять text из minio (или проверять что есть text_key)
 func (w *Worker) Parsing(ctx context.Context, task Task) {
 	logger := w.Logger.With("uuid=", task.UUID.String(), "stage", "parsing")
+	textObjectName := fmt.Sprintf("%s-text.txt", task.UUID.String())
 
 	var err error
-	defer func() {
-		if err != nil {
-			ctxTimeout, cancel := context.WithTimeout(context.Background(), w.Config.ContextTimeout) //todo потом для всех таймутов сделать свой конфиг
-			err := w.Queries.FailJob(ctxTimeout, queries.FailJobParams{
-				ID:    sqlc.ToUUID(task.UUID),
-				Error: sqlc.ToTEXT(err.Error()),
-			})
-			cancel()
-
-			if err != nil {
-				logger.Error("Failed to fail job :0", "error", err.Error())
-			}
-		}
-	}()
+	defer w.failJob(ctx, logger, task, &err)
 
 	tmpFile, err := os.CreateTemp("", "*.pdf")
 	if err != nil {
@@ -46,14 +34,13 @@ func (w *Worker) Parsing(ctx context.Context, task Task) {
 
 		tmpErr := os.Remove(tmpFile.Name())
 		if tmpErr != nil {
-			logger.Error("Failed to cleanup tmp file", "tmp_file", tmpFile.Name(), "error", err.Error())
+			logger.Error("Failed to cleanup tmp file", "tmp_file", tmpFile.Name(), "error", tmpErr.Error())
 		}
 	}()
 
 	ctxTimeout, cancel := context.WithTimeout(ctx, w.Config.ContextTimeout)
 	err = w.MinIO.FGetObject(ctxTimeout, "pdf", task.ObjectKey, tmpFile.Name(), minio.GetObjectOptions{})
 	cancel()
-
 	if err != nil {
 		logger.Error("Failed to get file from minio", "error", err.Error())
 		err = fmt.Errorf("failed to get file from minio: %w", err)
@@ -61,12 +48,12 @@ func (w *Worker) Parsing(ctx context.Context, task Task) {
 	}
 
 	f, r, err := pdf.Open(tmpFile.Name())
-	defer f.Close()
 	if err != nil {
 		logger.Error("Failed to open file", "error", err.Error())
 		err = fmt.Errorf("failed to open file: %w", err)
 		return
 	}
+	defer f.Close()
 
 	var buf bytes.Buffer
 	b, err := r.GetPlainText()
@@ -83,15 +70,13 @@ func (w *Worker) Parsing(ctx context.Context, task Task) {
 		return
 	}
 
-	content := buf.String()
-	textObjectName := fmt.Sprintf("%s-text.txt", task.UUID.String())
 	ctxTimeout, cancel = context.WithTimeout(ctx, w.Config.ContextTimeout)
 	_, err = w.MinIO.PutObject(
-		ctx,
+		ctxTimeout,
 		"pdf",
 		textObjectName,
-		strings.NewReader(content),
-		int64(len(content)),
+		&buf,
+		int64(buf.Len()),
 		minio.PutObjectOptions{
 			ContentType: "text/plain",
 		},
@@ -104,7 +89,7 @@ func (w *Worker) Parsing(ctx context.Context, task Task) {
 	}
 
 	ctxTimeout, cancel = context.WithTimeout(ctx, w.Config.ContextTimeout)
-	err = w.Queries.SetTextKey(ctx, queries.SetTextKeyParams{
+	err = w.Queries.SetTextKey(ctxTimeout, queries.SetTextKeyParams{
 		ID:      sqlc.ToUUID(task.UUID),
 		TextKey: sqlc.ToTEXT(textObjectName),
 	})
@@ -116,7 +101,7 @@ func (w *Worker) Parsing(ctx context.Context, task Task) {
 	}
 
 	ctxTimeout, cancel = context.WithTimeout(ctx, w.Config.ContextTimeout)
-	err = w.Queries.AdvanceJobStage(ctx, queries.AdvanceJobStageParams{
+	err = w.Queries.AdvanceJobStage(ctxTimeout, queries.AdvanceJobStageParams{
 		ID:    sqlc.ToUUID(task.UUID),
 		Stage: "cleaning",
 	})
@@ -140,4 +125,18 @@ func UpParsingWorkerPool(deps dependencies.AppDeps, workersCount int, ctx contex
 		}
 	}()
 
+}
+
+func (w *Worker) failJob(ctx context.Context, logger *slog.Logger, task Task, err *error) {
+	if err != nil && *err != nil {
+		ctxTimeout, cancel := context.WithTimeout(ctx, w.Config.ContextTimeout)
+		dbErr := w.Queries.FailJob(ctxTimeout, queries.FailJobParams{
+			ID:    sqlc.ToUUID(task.UUID),
+			Error: sqlc.ToTEXT((*err).Error()),
+		})
+		cancel()
+		if dbErr != nil {
+			logger.Error("Failed to fail job", "error", dbErr.Error())
+		}
+	}
 }
