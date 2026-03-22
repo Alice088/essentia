@@ -1,0 +1,102 @@
+package pdf
+
+import (
+	"Alice088/pdf-summarize/pkg/size"
+	"bytes"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func TestBasicValid_Success(t *testing.T) {
+	body := []byte("%PDF-hello world")
+
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+	req.ContentLength = int64(len(body))
+
+	res := BasicValid(req)
+
+	if res.Valid.Error != nil {
+		t.Fatalf("expected no error, got %v", res.Valid.Error)
+	}
+
+	if res.Metadata.Size != int64(len(body)) {
+		t.Fatalf("expected size %d, got %d", len(body), res.Metadata.Size)
+	}
+
+	out, err := io.ReadAll(res.Metadata.Reader)
+	if err != nil {
+		t.Fatalf("failed to read reader: %v", err)
+	}
+
+	if !bytes.Equal(out, body) {
+		t.Fatalf("reader content mismatch")
+	}
+}
+
+func TestBasicValid_FileTooLarge(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte("%PDF-")))
+	req.ContentLength = size.MB5 + 1
+
+	res := BasicValid(req)
+
+	if res.Valid.Error == nil {
+		t.Fatal("expected error")
+	}
+
+	if *res.Valid.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", *res.Valid.Code)
+	}
+}
+
+func TestBasicValid_InvalidHeader(t *testing.T) {
+	body := []byte("NOTPDF")
+
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+	req.ContentLength = int64(len(body))
+
+	res := BasicValid(req)
+
+	if res.Valid.Error == nil {
+		t.Fatal("expected error")
+	}
+
+	if *res.Valid.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("expected 415, got %d", *res.Valid.Code)
+	}
+}
+
+func TestBasicValid_ShortBody(t *testing.T) {
+	body := []byte("123")
+
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+	req.ContentLength = int64(len(body))
+
+	res := BasicValid(req)
+
+	if res.Valid.Error == nil {
+		t.Fatal("expected error")
+	}
+
+	if *res.Valid.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", *res.Valid.Code)
+	}
+}
+
+func TestBasicValid_UnknownSize(t *testing.T) {
+	body := []byte("%PDF-test")
+
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+	req.ContentLength = -1
+
+	res := BasicValid(req)
+
+	if res.Valid.Error != nil {
+		t.Fatalf("unexpected error: %v", res.Valid.Error)
+	}
+
+	if res.Metadata.Size != -1 {
+		t.Fatalf("expected size -1, got %d", res.Metadata.Size)
+	}
+}
