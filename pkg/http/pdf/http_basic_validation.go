@@ -8,6 +8,8 @@ import (
 	"net/http"
 )
 
+const pdfHeaderSize = 5
+
 type Result struct {
 	Valid    Valid
 	Metadata SafeMetadata
@@ -36,7 +38,8 @@ func BasicValid(r *http.Request) Result {
 			},
 		}
 	}
-	header := make([]byte, 5)
+
+	header := make([]byte, pdfHeaderSize)
 	if _, err := io.ReadFull(r.Body, header); err != nil {
 		return Result{
 			Valid: Valid{
@@ -55,15 +58,29 @@ func BasicValid(r *http.Request) Result {
 		}
 	}
 
-	res.Metadata.Reader = io.MultiReader(
-		bytes.NewReader(header),
-		r.Body,
-	)
-
-	res.Metadata.Size = r.ContentLength
-	if res.Metadata.Size <= 0 {
-		res.Metadata.Size = -1
+	remainingLimit := size.MB5 - int64(len(header))
+	body, err := io.ReadAll(io.LimitReader(r.Body, remainingLimit+1))
+	if err != nil {
+		return Result{
+			Valid: Valid{
+				Error: errors.New("invalid request body"),
+				Code:  new(http.StatusBadRequest),
+			},
+		}
 	}
+
+	if int64(len(body)) > remainingLimit {
+		return Result{
+			Valid: Valid{
+				Error: errors.New("file too large"),
+				Code:  new(http.StatusBadRequest),
+			},
+		}
+	}
+
+	payload := append(header, body...)
+	res.Metadata.Reader = bytes.NewReader(payload)
+	res.Metadata.Size = int64(len(payload))
 
 	return res
 }

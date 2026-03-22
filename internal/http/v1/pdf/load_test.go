@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"Alice088/pdf-summarize/pkg/size"
 	"github.com/google/uuid"
 )
 
@@ -102,15 +103,15 @@ func TestHandlerLoad_Success(t *testing.T) {
 	}
 }
 
-func TestHandlerLoad_UnknownContentLength(t *testing.T) {
+func TestHandlerLoad_UnknownContentLengthUsesBufferedSize(t *testing.T) {
 	body := []byte("%PDF-streamed body")
 	called := false
 
 	h := newTestHandler(t, func(ctx context.Context, r io.Reader, size int64) (uuid.UUID, error) {
 		called = true
 
-		if size != -1 {
-			t.Fatalf("expected size -1, got %d", size)
+		if size != int64(len(body)) {
+			t.Fatalf("expected size %d, got %d", len(body), size)
 		}
 
 		data, err := io.ReadAll(r)
@@ -136,6 +137,23 @@ func TestHandlerLoad_UnknownContentLength(t *testing.T) {
 	}
 
 	_ = assertJSONResponse(t, rr, http.StatusOK)
+}
+
+func TestHandlerLoad_RejectsOversizedBodyWithUnknownContentLength(t *testing.T) {
+	body := append([]byte("%PDF-"), bytes.Repeat([]byte("a"), size.MB5)...)
+	h := newTestHandler(t, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/pdf/load", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/pdf")
+	req.ContentLength = -1
+	rr := httptest.NewRecorder()
+
+	h.Load().ServeHTTP(rr, req)
+
+	got := assertJSONResponse(t, rr, http.StatusBadRequest)
+	if got["error"] != "file too large" {
+		t.Fatalf("expected file too large error, got %q", got["error"])
+	}
 }
 
 func TestHandlerLoad_InvalidPDF(t *testing.T) {
@@ -178,7 +196,7 @@ func TestHandlerLoad_FileTooLarge(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/pdf/load", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/pdf")
-	req.ContentLength = 5*1024*1024 + 1
+	req.ContentLength = size.MB5 + 1
 	rr := httptest.NewRecorder()
 
 	h.Load().ServeHTTP(rr, req)

@@ -35,7 +35,7 @@ func TestBasicValid_Success(t *testing.T) {
 	}
 }
 
-func TestBasicValid_FileTooLarge(t *testing.T) {
+func TestBasicValid_FileTooLargeContentLength(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte("%PDF-")))
 	req.ContentLength = size.MB5 + 1
 
@@ -47,6 +47,27 @@ func TestBasicValid_FileTooLarge(t *testing.T) {
 
 	if *res.Valid.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", *res.Valid.Code)
+	}
+}
+
+func TestBasicValid_FileTooLargeUnknownSize(t *testing.T) {
+	body := append([]byte("%PDF-"), bytes.Repeat([]byte("a"), size.MB5)...)
+
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+	req.ContentLength = -1
+
+	res := BasicValid(req)
+
+	if res.Valid.Error == nil {
+		t.Fatal("expected error")
+	}
+
+	if *res.Valid.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", *res.Valid.Code)
+	}
+
+	if res.Valid.Error.Error() != "file too large" {
+		t.Fatalf("expected file too large error, got %q", res.Valid.Error.Error())
 	}
 }
 
@@ -84,7 +105,7 @@ func TestBasicValid_ShortBody(t *testing.T) {
 	}
 }
 
-func TestBasicValid_UnknownSize(t *testing.T) {
+func TestBasicValid_UnknownSizeUsesActualBufferedLength(t *testing.T) {
 	body := []byte("%PDF-test")
 
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
@@ -96,7 +117,16 @@ func TestBasicValid_UnknownSize(t *testing.T) {
 		t.Fatalf("unexpected error: %v", res.Valid.Error)
 	}
 
-	if res.Metadata.Size != -1 {
-		t.Fatalf("expected size -1, got %d", res.Metadata.Size)
+	if res.Metadata.Size != int64(len(body)) {
+		t.Fatalf("expected size %d, got %d", len(body), res.Metadata.Size)
+	}
+
+	out, err := io.ReadAll(res.Metadata.Reader)
+	if err != nil {
+		t.Fatalf("failed to read reader: %v", err)
+	}
+
+	if !bytes.Equal(out, body) {
+		t.Fatalf("reader content mismatch")
 	}
 }
