@@ -3,10 +3,11 @@ package env
 import "time"
 
 type Config struct {
-	Env   string `env:"ENV,required"`
-	HTTP  HTTP
-	DB    DB
-	MinIO MinIO
+	Env     string `env:"ENV,required"`
+	HTTP    HTTP
+	DB      DB
+	MinIO   MinIO
+	Workers Workers
 }
 
 type HTTP struct {
