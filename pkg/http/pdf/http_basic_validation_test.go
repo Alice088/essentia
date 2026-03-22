@@ -55,6 +55,8 @@ func TestBasicValid_FileTooLargeUnknownSize(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.ContentLength = -1
+	rr := httptest.NewRecorder()
+	req.Body = http.MaxBytesReader(rr, req.Body, size.MB5)
 
 	res := BasicValid(req)
 

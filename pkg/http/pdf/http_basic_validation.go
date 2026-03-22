@@ -58,21 +58,21 @@ func BasicValid(r *http.Request) Result {
 		}
 	}
 
-	remainingLimit := size.MB5 - int64(len(header))
-	body, err := io.ReadAll(io.LimitReader(r.Body, remainingLimit+1))
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			return Result{
+				Valid: Valid{
+					Error: errors.New("file too large"),
+					Code:  new(http.StatusBadRequest),
+				},
+			}
+		}
+
 		return Result{
 			Valid: Valid{
 				Error: errors.New("invalid request body"),
-				Code:  new(http.StatusBadRequest),
-			},
-		}
-	}
-
-	if int64(len(body)) > remainingLimit {
-		return Result{
-			Valid: Valid{
-				Error: errors.New("file too large"),
 				Code:  new(http.StatusBadRequest),
 			},
 		}

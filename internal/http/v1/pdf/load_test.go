@@ -147,6 +147,7 @@ func TestHandlerLoad_RejectsOversizedBodyWithUnknownContentLength(t *testing.T) 
 	req.Header.Set("Content-Type", "application/pdf")
 	req.ContentLength = -1
 	rr := httptest.NewRecorder()
+	req.Body = http.MaxBytesReader(rr, req.Body, size.MB5)
 
 	h.Load().ServeHTTP(rr, req)
 
