@@ -11,55 +11,127 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type JobStatus string
+type JobStage string
 
 const (
-	JobStatusUploaded   JobStatus = "uploaded"
-	JobStatusProcessing JobStatus = "processing"
-	JobStatusCompleted  JobStatus = "completed"
-	JobStatusFailed     JobStatus = "failed"
+	JobStageUploaded    JobStage = "uploaded"
+	JobStageScanning    JobStage = "scanning"
+	JobStageScanned     JobStage = "scanned"
+	JobStageParsing     JobStage = "parsing"
+	JobStageParsed      JobStage = "parsed"
+	JobStageCleaning    JobStage = "cleaning"
+	JobStageCleaned     JobStage = "cleaned"
+	JobStageChunking    JobStage = "chunking"
+	JobStageChunked     JobStage = "chunked"
+	JobStageSummarizing JobStage = "summarizing"
+	JobStageSummarized  JobStage = "summarized"
+	JobStageAggregating JobStage = "aggregating"
+	JobStageCompleted   JobStage = "completed"
 )
 
-func (e *JobStatus) Scan(src interface{}) error {
+func (e *JobStage) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = JobStatus(s)
+		*e = JobStage(s)
 	case string:
-		*e = JobStatus(s)
+		*e = JobStage(s)
 	default:
-		return fmt.Errorf("unsupported scan type for JobStatus: %T", src)
+		return fmt.Errorf("unsupported scan type for JobStage: %T", src)
 	}
 	return nil
 }
 
-type NullJobStatus struct {
-	JobStatus JobStatus
-	Valid     bool // Valid is true if JobStatus is not NULL
+type NullJobStage struct {
+	JobStage JobStage
+	Valid    bool // Valid is true if JobStage is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullJobStatus) Scan(value interface{}) error {
+func (ns *NullJobStage) Scan(value interface{}) error {
 	if value == nil {
-		ns.JobStatus, ns.Valid = "", false
+		ns.JobStage, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.JobStatus.Scan(value)
+	return ns.JobStage.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullJobStatus) Value() (driver.Value, error) {
+func (ns NullJobStage) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.JobStatus), nil
+	return string(ns.JobStage), nil
+}
+
+type WorkStatus string
+
+const (
+	WorkStatusPending    WorkStatus = "pending"
+	WorkStatusProcessing WorkStatus = "processing"
+	WorkStatusCompleted  WorkStatus = "completed"
+	WorkStatusFailed     WorkStatus = "failed"
+	WorkStatusRejected   WorkStatus = "rejected"
+)
+
+func (e *WorkStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkStatus(s)
+	case string:
+		*e = WorkStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkStatus: %T", src)
+	}
+	return nil
+}
+
+type NullWorkStatus struct {
+	WorkStatus WorkStatus
+	Valid      bool // Valid is true if WorkStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkStatus), nil
+}
+
+type ChunkTask struct {
+	ID         pgtype.UUID
+	JobID      pgtype.UUID
+	ChunkIndex int32
+	Status     WorkStatus
+	Attempts   int32
+	ChunkKey   string
+	ResultKey  pgtype.Text
+	Error      pgtype.Text
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
 }
 
 type Job struct {
-	ID        pgtype.UUID
-	Status    JobStatus
-	ObjectKey string
-	Error     pgtype.Text
-	CreatedAt pgtype.Timestamptz
-	UpdatedAt pgtype.Timestamptz
+	ID             pgtype.UUID
+	Stage          JobStage
+	Status         WorkStatus
+	ObjectKey      string
+	Attempts       int32
+	TextKey        pgtype.Text
+	CleanedTextKey pgtype.Text
+	SummaryKey     pgtype.Text
+	Error          pgtype.Text
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
 }

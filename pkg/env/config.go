@@ -14,6 +14,7 @@ type HTTP struct {
 	Timeout              time.Duration `env:"TIMEOUT,required"`
 	AllowContentEncoding []string      `env:"ALLOW_CONTENT_ENCODING,required"`
 	Origins              []string      `env:"ORIGINS,required"`
+	Port                 string        `env:"PORT,required"`
 }
 
 type DB struct {

@@ -11,8 +11,135 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const advanceJobStage = `-- name: AdvanceJobStage :exec
+UPDATE jobs
+SET stage  = $2,
+    status = 'pending',
+    error  = NULL
+WHERE id = $1
+`
+
+type AdvanceJobStageParams struct {
+	ID    pgtype.UUID
+	Stage JobStage
+}
+
+func (q *Queries) AdvanceJobStage(ctx context.Context, arg AdvanceJobStageParams) error {
+	_, err := q.db.Exec(ctx, advanceJobStage, arg.ID, arg.Stage)
+	return err
+}
+
+const completeChunkTask = `-- name: CompleteChunkTask :exec
+UPDATE chunk_tasks
+SET status = 'completed',
+    result_key = $2,
+    error = NULL
+WHERE id = $1
+`
+
+type CompleteChunkTaskParams struct {
+	ID        pgtype.UUID
+	ResultKey pgtype.Text
+}
+
+func (q *Queries) CompleteChunkTask(ctx context.Context, arg CompleteChunkTaskParams) error {
+	_, err := q.db.Exec(ctx, completeChunkTask, arg.ID, arg.ResultKey)
+	return err
+}
+
+const completeJob = `-- name: CompleteJob :exec
+UPDATE jobs
+SET stage  = 'completed',
+    status = 'completed',
+    error  = NULL
+WHERE id = $1
+`
+
+func (q *Queries) CompleteJob(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, completeJob, id)
+	return err
+}
+
+const countPendingChunks = `-- name: CountPendingChunks :one
+SELECT COUNT(*)
+FROM chunk_tasks
+WHERE job_id = $1
+  AND status != 'completed'
+`
+
+func (q *Queries) CountPendingChunks(ctx context.Context, jobID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countPendingChunks, jobID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const createChunkTask = `-- name: CreateChunkTask :one
+INSERT INTO chunk_tasks (id,
+                         job_id,
+                         chunk_index,
+                         chunk_key)
+VALUES ($1, $2, $3, $4) RETURNING id, job_id, chunk_index, status, attempts, chunk_key, result_key, error, created_at, updated_at
+`
+
+type CreateChunkTaskParams struct {
+	ID         pgtype.UUID
+	JobID      pgtype.UUID
+	ChunkIndex int32
+	ChunkKey   string
+}
+
+func (q *Queries) CreateChunkTask(ctx context.Context, arg CreateChunkTaskParams) (ChunkTask, error) {
+	row := q.db.QueryRow(ctx, createChunkTask,
+		arg.ID,
+		arg.JobID,
+		arg.ChunkIndex,
+		arg.ChunkKey,
+	)
+	var i ChunkTask
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.ChunkIndex,
+		&i.Status,
+		&i.Attempts,
+		&i.ChunkKey,
+		&i.ResultKey,
+		&i.Error,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createChunkTasksBatch = `-- name: CreateChunkTasksBatch :exec
+INSERT INTO chunk_tasks (id, job_id, chunk_index, chunk_key)
+SELECT UNNEST($1::uuid[]),
+       $2,
+       UNNEST($3::int[]),
+       UNNEST($4::text[])
+`
+
+type CreateChunkTasksBatchParams struct {
+	Column1 []pgtype.UUID
+	JobID   pgtype.UUID
+	Column3 []int32
+	Column4 []string
+}
+
+func (q *Queries) CreateChunkTasksBatch(ctx context.Context, arg CreateChunkTasksBatchParams) error {
+	_, err := q.db.Exec(ctx, createChunkTasksBatch,
+		arg.Column1,
+		arg.JobID,
+		arg.Column3,
+		arg.Column4,
+	)
+	return err
+}
+
 const createJob = `-- name: CreateJob :one
-INSERT INTO jobs (id, object_key) VALUES ($1, $2) RETURNING id, status, object_key, error, created_at, updated_at
+INSERT INTO jobs (id, object_key)
+VALUES ($1, $2) RETURNING id, stage, status, object_key, attempts, text_key, cleaned_text_key, summary_key, error, created_at, updated_at
 `
 
 type CreateJobParams struct {
@@ -25,8 +152,13 @@ func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (Job, erro
 	var i Job
 	err := row.Scan(
 		&i.ID,
+		&i.Stage,
 		&i.Status,
 		&i.ObjectKey,
+		&i.Attempts,
+		&i.TextKey,
+		&i.CleanedTextKey,
+		&i.SummaryKey,
 		&i.Error,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -35,7 +167,9 @@ func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (Job, erro
 }
 
 const deleteJob = `-- name: DeleteJob :exec
-DELETE FROM jobs WHERE id = $1
+DELETE
+FROM jobs
+WHERE id = $1
 `
 
 func (q *Queries) DeleteJob(ctx context.Context, id pgtype.UUID) error {
@@ -43,8 +177,46 @@ func (q *Queries) DeleteJob(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
+const failChunkTask = `-- name: FailChunkTask :exec
+UPDATE chunk_tasks
+SET status = 'failed',
+    error = $2,
+    attempts = attempts + 1
+WHERE id = $1
+`
+
+type FailChunkTaskParams struct {
+	ID    pgtype.UUID
+	Error pgtype.Text
+}
+
+func (q *Queries) FailChunkTask(ctx context.Context, arg FailChunkTaskParams) error {
+	_, err := q.db.Exec(ctx, failChunkTask, arg.ID, arg.Error)
+	return err
+}
+
+const failJob = `-- name: FailJob :exec
+UPDATE jobs
+SET status   = 'failed',
+    error    = $2,
+    attempts = attempts + 1
+WHERE id = $1
+`
+
+type FailJobParams struct {
+	ID    pgtype.UUID
+	Error pgtype.Text
+}
+
+func (q *Queries) FailJob(ctx context.Context, arg FailJobParams) error {
+	_, err := q.db.Exec(ctx, failJob, arg.ID, arg.Error)
+	return err
+}
+
 const getJob = `-- name: GetJob :one
-SELECT id, status, object_key, error, created_at, updated_at FROM jobs WHERE id = $1
+SELECT id, stage, status, object_key, attempts, text_key, cleaned_text_key, summary_key, error, created_at, updated_at
+FROM jobs
+WHERE id = $1
 `
 
 func (q *Queries) GetJob(ctx context.Context, id pgtype.UUID) (Job, error) {
@@ -52,8 +224,13 @@ func (q *Queries) GetJob(ctx context.Context, id pgtype.UUID) (Job, error) {
 	var i Job
 	err := row.Scan(
 		&i.ID,
+		&i.Stage,
 		&i.Status,
 		&i.ObjectKey,
+		&i.Attempts,
+		&i.TextKey,
+		&i.CleanedTextKey,
+		&i.SummaryKey,
 		&i.Error,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -62,7 +239,9 @@ func (q *Queries) GetJob(ctx context.Context, id pgtype.UUID) (Job, error) {
 }
 
 const getJobByObjectKey = `-- name: GetJobByObjectKey :one
-SELECT id, status, object_key, error, created_at, updated_at FROM jobs WHERE object_key = $1
+SELECT id, stage, status, object_key, attempts, text_key, cleaned_text_key, summary_key, error, created_at, updated_at
+FROM jobs
+WHERE object_key = $1
 `
 
 func (q *Queries) GetJobByObjectKey(ctx context.Context, objectKey string) (Job, error) {
@@ -70,8 +249,13 @@ func (q *Queries) GetJobByObjectKey(ctx context.Context, objectKey string) (Job,
 	var i Job
 	err := row.Scan(
 		&i.ID,
+		&i.Stage,
 		&i.Status,
 		&i.ObjectKey,
+		&i.Attempts,
+		&i.TextKey,
+		&i.CleanedTextKey,
+		&i.SummaryKey,
 		&i.Error,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -79,23 +263,83 @@ func (q *Queries) GetJobByObjectKey(ctx context.Context, objectKey string) (Job,
 	return i, err
 }
 
-const getNextUploadedJob = `-- name: GetNextUploadedJob :one
-SELECT id, status, object_key, error, created_at, updated_at
-FROM jobs
-WHERE
-    status = 'uploaded'
-ORDER BY created_at
-LIMIT 1 FOR
+const getNextChunkTask = `-- name: GetNextChunkTask :one
+SELECT id, job_id, chunk_index, status, attempts, chunk_key, result_key, error, created_at, updated_at
+FROM chunk_tasks
+WHERE status = 'pending'
+  AND job_id = $1
+ORDER BY chunk_index LIMIT 1
+FOR
 UPDATE SKIP LOCKED
 `
 
-func (q *Queries) GetNextUploadedJob(ctx context.Context) (Job, error) {
-	row := q.db.QueryRow(ctx, getNextUploadedJob)
+func (q *Queries) GetNextChunkTask(ctx context.Context, jobID pgtype.UUID) (ChunkTask, error) {
+	row := q.db.QueryRow(ctx, getNextChunkTask, jobID)
+	var i ChunkTask
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.ChunkIndex,
+		&i.Status,
+		&i.Attempts,
+		&i.ChunkKey,
+		&i.ResultKey,
+		&i.Error,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getNextChunkTaskGlobal = `-- name: GetNextChunkTaskGlobal :one
+SELECT id, job_id, chunk_index, status, attempts, chunk_key, result_key, error, created_at, updated_at
+FROM chunk_tasks
+WHERE status = 'pending'
+ORDER BY created_at
+LIMIT 1
+FOR UPDATE SKIP LOCKED
+`
+
+func (q *Queries) GetNextChunkTaskGlobal(ctx context.Context) (ChunkTask, error) {
+	row := q.db.QueryRow(ctx, getNextChunkTaskGlobal)
+	var i ChunkTask
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.ChunkIndex,
+		&i.Status,
+		&i.Attempts,
+		&i.ChunkKey,
+		&i.ResultKey,
+		&i.Error,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getNextJobForStage = `-- name: GetNextJobForStage :one
+SELECT id, stage, status, object_key, attempts, text_key, cleaned_text_key, summary_key, error, created_at, updated_at
+FROM jobs
+WHERE status = 'pending'
+  AND stage = $1
+ORDER BY created_at LIMIT 1
+FOR
+UPDATE SKIP LOCKED
+`
+
+func (q *Queries) GetNextJobForStage(ctx context.Context, stage JobStage) (Job, error) {
+	row := q.db.QueryRow(ctx, getNextJobForStage, stage)
 	var i Job
 	err := row.Scan(
 		&i.ID,
+		&i.Stage,
 		&i.Status,
 		&i.ObjectKey,
+		&i.Attempts,
+		&i.TextKey,
+		&i.CleanedTextKey,
+		&i.SummaryKey,
 		&i.Error,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -104,7 +348,10 @@ func (q *Queries) GetNextUploadedJob(ctx context.Context) (Job, error) {
 }
 
 const listJobs = `-- name: ListJobs :many
-SELECT id, status, object_key, error, created_at, updated_at FROM jobs ORDER BY created_at DESC LIMIT $1 OFFSET $2
+SELECT id, stage, status, object_key, attempts, text_key, cleaned_text_key, summary_key, error, created_at, updated_at
+FROM jobs
+ORDER BY created_at DESC LIMIT $1
+OFFSET $2
 `
 
 type ListJobsParams struct {
@@ -123,8 +370,13 @@ func (q *Queries) ListJobs(ctx context.Context, arg ListJobsParams) ([]Job, erro
 		var i Job
 		if err := rows.Scan(
 			&i.ID,
+			&i.Stage,
 			&i.Status,
 			&i.ObjectKey,
+			&i.Attempts,
+			&i.TextKey,
+			&i.CleanedTextKey,
+			&i.SummaryKey,
 			&i.Error,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -139,34 +391,117 @@ func (q *Queries) ListJobs(ctx context.Context, arg ListJobsParams) ([]Job, erro
 	return items, nil
 }
 
-const setJobCompleted = `-- name: SetJobCompleted :exec
-UPDATE jobs SET status = 'completed', error = NULL WHERE id = $1
+const rejectJob = `-- name: RejectJob :exec
+UPDATE jobs
+SET status = 'rejected',
+    error = $2,
+    attempts = attempts + 1
+WHERE id = $1
+  AND status NOT IN ('completed', 'rejected')
 `
 
-func (q *Queries) SetJobCompleted(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, setJobCompleted, id)
-	return err
-}
-
-const setJobFailed = `-- name: SetJobFailed :exec
-UPDATE jobs SET status = 'failed', error = $2 WHERE id = $1
-`
-
-type SetJobFailedParams struct {
+type RejectJobParams struct {
 	ID    pgtype.UUID
 	Error pgtype.Text
 }
 
-func (q *Queries) SetJobFailed(ctx context.Context, arg SetJobFailedParams) error {
-	_, err := q.db.Exec(ctx, setJobFailed, arg.ID, arg.Error)
+func (q *Queries) RejectJob(ctx context.Context, arg RejectJobParams) error {
+	_, err := q.db.Exec(ctx, rejectJob, arg.ID, arg.Error)
+	return err
+}
+
+const resetFailedChunks = `-- name: ResetFailedChunks :exec
+UPDATE chunk_tasks
+SET status = 'pending',
+    error = NULL
+WHERE job_id = $1
+  AND status = 'failed'
+`
+
+func (q *Queries) ResetFailedChunks(ctx context.Context, jobID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, resetFailedChunks, jobID)
+	return err
+}
+
+const resetFailedJob = `-- name: ResetFailedJob :exec
+UPDATE jobs
+SET status = 'pending',
+    error = NULL
+WHERE id = $1
+  AND status = 'failed'
+`
+
+func (q *Queries) ResetFailedJob(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, resetFailedJob, id)
+	return err
+}
+
+const setChunkProcessing = `-- name: SetChunkProcessing :exec
+UPDATE chunk_tasks
+SET status = 'processing'
+WHERE id = $1
+`
+
+func (q *Queries) SetChunkProcessing(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, setChunkProcessing, id)
+	return err
+}
+
+const setCleanedTextKey = `-- name: SetCleanedTextKey :exec
+UPDATE jobs
+SET cleaned_text_key = $2
+WHERE id = $1
+`
+
+type SetCleanedTextKeyParams struct {
+	ID             pgtype.UUID
+	CleanedTextKey pgtype.Text
+}
+
+func (q *Queries) SetCleanedTextKey(ctx context.Context, arg SetCleanedTextKeyParams) error {
+	_, err := q.db.Exec(ctx, setCleanedTextKey, arg.ID, arg.CleanedTextKey)
 	return err
 }
 
 const setJobProcessing = `-- name: SetJobProcessing :exec
-UPDATE jobs SET status = 'processing' WHERE id = $1
+UPDATE jobs
+SET status = 'processing'
+WHERE id = $1
 `
 
 func (q *Queries) SetJobProcessing(ctx context.Context, id pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, setJobProcessing, id)
+	return err
+}
+
+const setSummaryKey = `-- name: SetSummaryKey :exec
+UPDATE jobs
+SET summary_key = $2
+WHERE id = $1
+`
+
+type SetSummaryKeyParams struct {
+	ID         pgtype.UUID
+	SummaryKey pgtype.Text
+}
+
+func (q *Queries) SetSummaryKey(ctx context.Context, arg SetSummaryKeyParams) error {
+	_, err := q.db.Exec(ctx, setSummaryKey, arg.ID, arg.SummaryKey)
+	return err
+}
+
+const setTextKey = `-- name: SetTextKey :exec
+UPDATE jobs
+SET text_key = $2
+WHERE id = $1
+`
+
+type SetTextKeyParams struct {
+	ID      pgtype.UUID
+	TextKey pgtype.Text
+}
+
+func (q *Queries) SetTextKey(ctx context.Context, arg SetTextKeyParams) error {
+	_, err := q.db.Exec(ctx, setTextKey, arg.ID, arg.TextKey)
 	return err
 }
