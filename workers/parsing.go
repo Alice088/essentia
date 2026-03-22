@@ -16,7 +16,7 @@ import (
 // TODO
 // - Добавить проверку что если это не первая попытка попытаться взять text из minio (или проверять что есть text_key)
 func (w *Worker) Parsing(ctx context.Context, tasks <-chan Task) {
-	l := w.Logger.With("stage=parsing")
+	l := w.Logger.With("stage", "parsing")
 
 	for task := range tasks {
 		logger := l.With("uuid=", task.UUID.String())
@@ -215,7 +215,7 @@ func (w *Worker) Parsing(ctx context.Context, tasks <-chan Task) {
 
 		err = os.Remove(tmpFile.Name())
 		if err != nil {
-			logger.Error("Failed to cleanup tmp file", "tmp_file=", tmpFile.Name(), "error", err.Error())
+			logger.Error("Failed to cleanup tmp file", "tmp_file", tmpFile.Name(), "error", err.Error())
 		}
 	}
 }
