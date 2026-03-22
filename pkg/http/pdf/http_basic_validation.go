@@ -9,9 +9,8 @@ import (
 )
 
 type Result struct {
-	Valid  Valid
-	Size   int64
-	Reader io.Reader
+	Valid    Valid
+	Metadata SafeMetadata
 }
 
 type Valid struct {
@@ -19,7 +18,12 @@ type Valid struct {
 	Code  *int
 }
 
-func BasicValidPDF(r *http.Request) Result {
+type SafeMetadata struct {
+	Size   int64
+	Reader io.Reader
+}
+
+func BasicValid(r *http.Request) Result {
 	res := Result{
 		Valid: Valid{},
 	}
@@ -51,14 +55,14 @@ func BasicValidPDF(r *http.Request) Result {
 		}
 	}
 
-	res.Reader = io.MultiReader(
+	res.Metadata.Reader = io.MultiReader(
 		bytes.NewReader(header),
 		r.Body,
 	)
 
-	res.Size = r.ContentLength
-	if res.Size <= 0 {
-		res.Size = -1
+	res.Metadata.Size = r.ContentLength
+	if res.Metadata.Size <= 0 {
+		res.Metadata.Size = -1
 	}
 
 	return res

@@ -33,22 +33,21 @@ func (h *Handler) Load() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 
-		safePDF := pdf.BasicValidPDF(r)
-		if safePDF.Valid.Error != nil {
-			httpx.HttpResponse(w, *safePDF.Valid.Code, map[string]string{
-				"error": safePDF.Valid.Error.Error(),
+		result := pdf.BasicValid(r)
+		if result.Valid.Error != nil {
+			httpx.HttpResponse(w, *result.Valid.Code, map[string]string{
+				"error": result.Valid.Error.Error(),
 			})
 			return
 		}
 
 		jobID, err := h.Service.CreateJobFromPDF(
 			r.Context(),
-			safePDF.Reader,
-			safePDF.Size,
+			result.Metadata.Reader,
+			result.Metadata.Size,
 		)
 		if err != nil {
 			h.Logger.Error("create job failed", "error", err)
-
 			httpx.HttpResponse(w, http.StatusInternalServerError, map[string]string{
 				"error": "failed to process file",
 			})
