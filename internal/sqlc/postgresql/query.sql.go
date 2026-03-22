@@ -391,25 +391,6 @@ func (q *Queries) ListJobs(ctx context.Context, arg ListJobsParams) ([]Job, erro
 	return items, nil
 }
 
-const rejectJob = `-- name: RejectJob :exec
-UPDATE jobs
-SET status = 'rejected',
-    error = $2,
-    attempts = attempts + 1
-WHERE id = $1
-  AND status NOT IN ('completed', 'rejected')
-`
-
-type RejectJobParams struct {
-	ID    pgtype.UUID
-	Error pgtype.Text
-}
-
-func (q *Queries) RejectJob(ctx context.Context, arg RejectJobParams) error {
-	_, err := q.db.Exec(ctx, rejectJob, arg.ID, arg.Error)
-	return err
-}
-
 const resetFailedChunks = `-- name: ResetFailedChunks :exec
 UPDATE chunk_tasks
 SET status = 'pending',

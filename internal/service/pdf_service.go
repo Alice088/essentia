@@ -1,11 +1,11 @@
 package service
 
 import (
+	"Alice088/pdf-summarize/internal/dependencies"
 	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
 	"context"
 	"io"
 	"log/slog"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -15,20 +15,24 @@ import (
 type PDFService struct {
 	MinIO   *minio.Client
 	Queries *queries.Queries
-	Timeout time.Duration
 	Logger  *slog.Logger
 }
 
-func (s *PDFService) CreateJobFromPDF(
+func NewPDFService(appDeps dependencies.AppDeps) PDFService {
+	return PDFService{
+		MinIO:   appDeps.MinIO,
+		Queries: appDeps.Queries,
+		Logger:  appDeps.Logger,
+	}
+}
+
+func (s *PDFService) CreateJob(
 	ctx context.Context,
 	reader io.Reader,
 	size int64,
 ) (uuid.UUID, error) {
 	jobID := uuid.New()
 	objectKey := jobID.String() + ".pdf"
-
-	ctx, cancel := context.WithTimeout(ctx, s.Timeout)
-	defer cancel()
 
 	uploaded := false
 	defer func() {

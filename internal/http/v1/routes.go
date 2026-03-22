@@ -1,21 +1,19 @@
 package v1
 
 import (
-	"Alice088/pdf-summarize/internal/http/v1/load"
-	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
-	"log/slog"
-	"time"
+	"Alice088/pdf-summarize/internal/dependencies"
+	"Alice088/pdf-summarize/internal/http/v1/pdf"
+	"Alice088/pdf-summarize/internal/service"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/minio/minio-go/v7"
 )
 
-func Routes(logger *slog.Logger, queries *queries.Queries, timeout time.Duration, minio *minio.Client, bucketName string) chi.Router {
+func Routes(appDeps dependencies.AppDeps) chi.Router {
 	r := chi.NewRouter()
 
-	loadHandler := load.NewHandler(logger, queries, timeout, minio, bucketName)
+	pdfHandler := pdf.NewHandler(appDeps, service.NewPDFService(appDeps))
 
-	r.With(middleware.AllowContentType("application/pdf")).Post("/load", loadHandler.Load())
+	r.With(middleware.AllowContentType("application/pdf")).Post("/load", pdfHandler.Load())
 	return r
 }

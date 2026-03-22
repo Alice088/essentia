@@ -27,7 +27,6 @@ type MinIO struct {
 	SecretKey string `env:"MINIO_SECRET_KEY,required"`
 	SSL       bool   `env:"MINIO_SSL,required"`
 	Location  string `env:"MINIO_LOCATION,required"`
-	PDFBucket string `env:"MINIO_PDF_BUCKET,required"`
 }
 
 type Workers struct {

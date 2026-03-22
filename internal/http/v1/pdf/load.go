@@ -1,6 +1,7 @@
-package load
+package pdf
 
 import (
+	"Alice088/pdf-summarize/internal/dependencies"
 	"Alice088/pdf-summarize/internal/service"
 	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
 	httpx "Alice088/pdf-summarize/pkg/http"
@@ -13,19 +14,20 @@ import (
 )
 
 type Handler struct {
-	Logger  *slog.Logger
-	Queries *queries.Queries
-	Timeout time.Duration
-	MinIO   *minio.Client
-	Service service.PDFService
+	Logger     *slog.Logger
+	Queries    *queries.Queries
+	Timeout    time.Duration
+	MinIO      *minio.Client
+	PDFService service.PDFService
 }
 
-func NewHandler(logger *slog.Logger, queries *queries.Queries, timeout time.Duration, minio *minio.Client) Handler {
+func NewHandler(appDeps dependencies.AppDeps, serv service.PDFService) Handler {
 	return Handler{
-		Logger:  logger,
-		Queries: queries,
-		Timeout: timeout,
-		MinIO:   minio,
+		Logger:     appDeps.Logger,
+		Queries:    appDeps.Queries,
+		Timeout:    appDeps.Config.HTTP.Timeout,
+		MinIO:      appDeps.MinIO,
+		PDFService: serv,
 	}
 }
 
@@ -41,7 +43,7 @@ func (h *Handler) Load() http.HandlerFunc {
 			return
 		}
 
-		jobID, err := h.Service.CreateJobFromPDF(
+		jobID, err := h.PDFService.CreateJob(
 			r.Context(),
 			result.Metadata.Reader,
 			result.Metadata.Size,

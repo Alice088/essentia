@@ -15,8 +15,6 @@ type JobStage string
 
 const (
 	JobStageUploaded    JobStage = "uploaded"
-	JobStageScanning    JobStage = "scanning"
-	JobStageScanned     JobStage = "scanned"
 	JobStageParsing     JobStage = "parsing"
 	JobStageParsed      JobStage = "parsed"
 	JobStageCleaning    JobStage = "cleaning"
@@ -71,7 +69,6 @@ const (
 	WorkStatusProcessing WorkStatus = "processing"
 	WorkStatusCompleted  WorkStatus = "completed"
 	WorkStatusFailed     WorkStatus = "failed"
-	WorkStatusRejected   WorkStatus = "rejected"
 )
 
 func (e *WorkStatus) Scan(src interface{}) error {

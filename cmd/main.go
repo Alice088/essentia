@@ -1,6 +1,7 @@
 package main
 
 import (
+	"Alice088/pdf-summarize/internal/dependencies"
 	httpx "Alice088/pdf-summarize/internal/http"
 	v1 "Alice088/pdf-summarize/internal/http/v1"
 	"Alice088/pdf-summarize/internal/prometheus"
@@ -73,12 +74,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctxTimeout, cancel = context.WithTimeout(ctx, 2*time.Second)
+	ctxTimeout, cancel = context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	err = minioClient.MakeBucket(ctxTimeout, cfg.MinIO.PDFBucket, minio.MakeBucketOptions{Region: cfg.MinIO.Location})
+	err = minioClient.MakeBucket(ctxTimeout, "pdf", minio.MakeBucketOptions{Region: cfg.MinIO.Location})
 	if err != nil {
-		exists, errBucketExists := minioClient.BucketExists(ctxTimeout, cfg.MinIO.PDFBucket)
+		exists, errBucketExists := minioClient.BucketExists(ctxTimeout, "pdf")
 		if errBucketExists != nil || !exists {
 			logger.Error("Failed to check bucket exist or bucket doesn't exist", "error", err.Error())
 			os.Exit(1)
@@ -89,16 +90,25 @@ func main() {
 	httpx.UpMiddlewares(r, cfg, logger)
 	prometheus.UpMetrics()
 
-	r.Mount("/v1", v1.Routes(logger, q, cfg.HTTP.Timeout, minioClient, cfg.MinIO.PDFBucket))
+	appDeps := dependencies.AppDeps{
+		Config:  &cfg,
+		Logger:  logger,
+		MinIO:   minioClient,
+		Queries: q,
+	}
+
+	r.Mount("/v1", v1.Routes(appDeps))
 	r.Handle("/metrics", promhttp.Handler())
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.HTTP.Port,
 		Handler:      r,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  30 * time.Second,
 	}
+
+	logger.Info("Server starting", "port", cfg.HTTP.Port)
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(http.ErrServerClosed, err) {
@@ -110,7 +120,7 @@ func main() {
 	stop()
 	logger.Info("shutting down server...")
 
-	ctxTimeout, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	ctxTimeout, cancel = context.WithTimeoutCause(context.Background(), 5*time.Second, errors.New("shutdown too long"))
 	defer cancel()
 
 	err = srv.Shutdown(ctxTimeout)
