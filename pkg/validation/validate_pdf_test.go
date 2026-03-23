@@ -1,8 +1,10 @@
 package validation
 
 import (
+	errs "Alice088/pdf-summarize/pkg/errors"
 	"Alice088/pdf-summarize/pkg/size"
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,10 +19,13 @@ func TestBasicValid_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.ContentLength = int64(len(body))
 
-	res := ValidatePDF(req)
+	res := ValidatePDF(PDFInput{
+		Size:   req.ContentLength,
+		Reader: bytes.NewBuffer(body),
+	})
 
-	if res.Valid.Error != nil {
-		t.Fatalf("expected no error, got %v", res.Valid.Error)
+	if res.Error != nil {
+		t.Fatalf("expected no error, got %v", res.Error)
 	}
 
 	if res.Metadata.Size != int64(len(body)) {
@@ -40,18 +45,28 @@ func TestBasicValid_Success(t *testing.T) {
 // TestBasicValid_FileTooLargeContentLength verifies that requests declaring
 // a Content-Length larger than the allowed limit are rejected immediately.
 func TestBasicValid_FileTooLargeContentLength(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte("%PDF-")))
+	body := []byte("%PDF-hello world")
+
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.ContentLength = size.MB5 + 1
 
-	res := ValidatePDF(req)
+	res := ValidatePDF(PDFInput{
+		Size:   req.ContentLength,
+		Reader: bytes.NewBuffer(body),
+	})
 
-	if res.Valid.Error == nil {
+	if res.Error == nil {
 		t.Fatal("expected error")
 	}
 
-	if *res.Valid.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d", *res.Valid.Code)
+	if err, ok := errors.AsType[*errs.PDFError](res.Error); !ok {
+		t.Fatalf("expected PDFError, got %v", res.Error)
+	} else {
+		if err.StatusCode() != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", err.StatusCode())
+		}
 	}
+
 }
 
 // TestBasicValid_FileTooLargeUnknownSize verifies that oversized streamed
@@ -64,18 +79,25 @@ func TestBasicValid_FileTooLargeUnknownSize(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req.Body = http.MaxBytesReader(rr, req.Body, size.MB5)
 
-	res := ValidatePDF(req)
+	res := ValidatePDF(PDFInput{
+		Size:   req.ContentLength,
+		Reader: req.Body,
+	})
 
-	if res.Valid.Error == nil {
+	if res.Error == nil {
 		t.Fatal("expected error")
 	}
 
-	if *res.Valid.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d", *res.Valid.Code)
-	}
+	if err, ok := errors.AsType[*errs.PDFError](res.Error); !ok {
+		t.Fatalf("expected PDFError, got %v", res.Error)
+	} else {
+		if err.StatusCode() != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", err.StatusCode())
+		}
 
-	if res.Valid.Error.Error() != "file too large" {
-		t.Fatalf("expected file too large error, got %q", res.Valid.Error.Error())
+		if err.Code != errs.ErrTooLarge {
+			t.Fatalf("expected file too large error, got %q", err.Code)
+		}
 	}
 }
 
@@ -87,14 +109,21 @@ func TestBasicValid_InvalidHeader(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.ContentLength = int64(len(body))
 
-	res := ValidatePDF(req)
+	res := ValidatePDF(PDFInput{
+		Size:   req.ContentLength,
+		Reader: bytes.NewBuffer(body),
+	})
 
-	if res.Valid.Error == nil {
+	if res.Error == nil {
 		t.Fatal("expected error")
 	}
 
-	if *res.Valid.Code != http.StatusUnsupportedMediaType {
-		t.Fatalf("expected 415, got %d", *res.Valid.Code)
+	if err, ok := errors.AsType[*errs.PDFError](res.Error); !ok {
+		t.Fatalf("expected PDFError, got %v", res.Error)
+	} else {
+		if err.StatusCode() != http.StatusUnsupportedMediaType {
+			t.Fatalf("expected 415, got %d", err.StatusCode())
+		}
 	}
 }
 
@@ -106,14 +135,21 @@ func TestBasicValid_ShortBody(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.ContentLength = int64(len(body))
 
-	res := ValidatePDF(req)
+	res := ValidatePDF(PDFInput{
+		Size:   req.ContentLength,
+		Reader: bytes.NewBuffer(body),
+	})
 
-	if res.Valid.Error == nil {
+	if res.Error == nil {
 		t.Fatal("expected error")
 	}
 
-	if *res.Valid.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d", *res.Valid.Code)
+	if err, ok := errors.AsType[*errs.PDFError](res.Error); !ok {
+		t.Fatalf("expected PDFError, got %v", res.Error)
+	} else {
+		if err.StatusCode() != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", err.StatusCode())
+		}
 	}
 }
 
@@ -126,10 +162,13 @@ func TestBasicValid_UnknownSizeUsesActualBufferedLength(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.ContentLength = -1
 
-	res := ValidatePDF(req)
+	res := ValidatePDF(PDFInput{
+		Size:   req.ContentLength,
+		Reader: bytes.NewBuffer(body),
+	})
 
-	if res.Valid.Error != nil {
-		t.Fatalf("unexpected error: %v", res.Valid.Error)
+	if res.Error != nil {
+		t.Fatalf("unexpected error: %v", res.Error)
 	}
 
 	if res.Metadata.Size != int64(len(body)) {

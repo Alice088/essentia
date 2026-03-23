@@ -180,7 +180,7 @@ func TestHandlerLoad_InvalidPDF(t *testing.T) {
 	h.Load().ServeHTTP(rr, req)
 
 	got := assertJSONResponse(t, rr, http.StatusUnsupportedMediaType)
-	if got["error"] != "invalid pdf file" {
+	if got["error"] != "file not pdf" {
 		t.Fatalf("expected invalid pdf error, got %q", got["error"])
 	}
 }
@@ -199,7 +199,7 @@ func TestHandlerLoad_ShortBody(t *testing.T) {
 	h.Load().ServeHTTP(rr, req)
 
 	got := assertJSONResponse(t, rr, http.StatusBadRequest)
-	if got["error"] != "invalid request body" {
+	if got["error"] != "invalid file" {
 		t.Fatalf("expected invalid request body error, got %q", got["error"])
 	}
 }

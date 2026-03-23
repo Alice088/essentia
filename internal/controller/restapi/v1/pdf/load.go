@@ -52,7 +52,6 @@ func (h *Handler) Load() http.HandlerFunc {
 					"error": err.SafeMessage(),
 				})
 			}
-
 			return
 		}
 
