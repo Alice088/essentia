@@ -40,5 +40,6 @@ type Workers struct {
 }
 
 type WorkersParsing struct {
-	ContextTimeout time.Duration `env:"WORKERS_PARSING_CONTEXT_TIMEOUT,required"`
+	ContextTimeout       time.Duration `env:"WORKERS_PARSING_CONTEXT_TIMEOUT,required"`
+	ReaderContextTimeout time.Duration `env:"WORKERS_PARSING_READER_CONTEXT_TIMEOUT,required"`
 }
