@@ -1,8 +1,8 @@
 package dependencies
 
 import (
-	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
-	"Alice088/pdf-summarize/pkg/env"
+	queries "Alice088/essentia/internal/sqlc/postgresql"
+	"Alice088/essentia/pkg/env"
 	"log/slog"
 
 	"github.com/minio/minio-go/v7"

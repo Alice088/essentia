@@ -1,8 +1,8 @@
 package middleware
 
 import (
-	"Alice088/pdf-summarize/pkg/env"
-	"Alice088/pdf-summarize/pkg/size"
+	"Alice088/essentia/pkg/env"
+	"Alice088/essentia/pkg/size"
 	"log/slog"
 
 	"github.com/go-chi/chi/v5"

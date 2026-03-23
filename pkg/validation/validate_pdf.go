@@ -1,8 +1,8 @@
 package validation
 
 import (
-	errs "Alice088/pdf-summarize/pkg/errors"
-	"Alice088/pdf-summarize/pkg/size"
+	errs "Alice088/essentia/pkg/errors"
+	"Alice088/essentia/pkg/size"
 	"bytes"
 	"errors"
 	"io"

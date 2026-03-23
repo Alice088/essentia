@@ -1,4 +1,4 @@
-module Alice088/pdf-summarize
+module Alice088/essentia
 
 go 1.26.0
 

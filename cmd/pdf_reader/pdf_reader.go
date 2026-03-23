@@ -1,7 +1,7 @@
 package main
 
 import (
-	"Alice088/pdf-summarize/pkg/pdf_reader"
+	"Alice088/essentia/pkg/pdf_reader"
 	"bytes"
 	"encoding/json"
 	"fmt"

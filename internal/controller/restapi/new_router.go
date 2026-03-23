@@ -1,10 +1,10 @@
 package restapi
 
 import (
-	"Alice088/pdf-summarize/internal/app/dependencies"
-	"Alice088/pdf-summarize/internal/controller/restapi/middleware"
-	"Alice088/pdf-summarize/internal/controller/restapi/v1"
-	"Alice088/pdf-summarize/pkg/prometheus"
+	"Alice088/essentia/internal/app/dependencies"
+	"Alice088/essentia/internal/controller/restapi/middleware"
+	"Alice088/essentia/internal/controller/restapi/v1"
+	"Alice088/essentia/pkg/prometheus"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

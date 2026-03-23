@@ -1,12 +1,12 @@
 package pdf
 
 import (
-	"Alice088/pdf-summarize/internal/app/dependencies"
-	"Alice088/pdf-summarize/internal/service"
-	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
-	errs "Alice088/pdf-summarize/pkg/errors"
-	httpx "Alice088/pdf-summarize/pkg/http"
-	"Alice088/pdf-summarize/pkg/validation"
+	"Alice088/essentia/internal/app/dependencies"
+	"Alice088/essentia/internal/service"
+	queries "Alice088/essentia/internal/sqlc/postgresql"
+	errs "Alice088/essentia/pkg/errors"
+	httpx "Alice088/essentia/pkg/http"
+	"Alice088/essentia/pkg/validation"
 	"errors"
 	"log/slog"
 	"net/http"

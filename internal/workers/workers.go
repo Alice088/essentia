@@ -1,7 +1,7 @@
 package workers
 
 import (
-	"Alice088/pdf-summarize/internal/app/dependencies"
+	"Alice088/essentia/internal/app/dependencies"
 	"context"
 	"sync"
 	"time"

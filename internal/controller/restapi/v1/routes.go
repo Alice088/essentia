@@ -1,9 +1,9 @@
 package v1
 
 import (
-	"Alice088/pdf-summarize/internal/app/dependencies"
-	"Alice088/pdf-summarize/internal/controller/restapi/v1/pdf"
-	pdfservice "Alice088/pdf-summarize/internal/service/pdf"
+	"Alice088/essentia/internal/app/dependencies"
+	"Alice088/essentia/internal/controller/restapi/v1/pdf"
+	pdfservice "Alice088/essentia/internal/service/pdf"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"

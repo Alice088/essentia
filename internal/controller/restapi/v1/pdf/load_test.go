@@ -11,7 +11,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"Alice088/pdf-summarize/pkg/size"
+	"Alice088/essentia/pkg/size"
 
 	"github.com/google/uuid"
 )

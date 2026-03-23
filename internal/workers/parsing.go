@@ -1,10 +1,10 @@
 package workers
 
 import (
-	"Alice088/pdf-summarize/internal/app/dependencies"
-	"Alice088/pdf-summarize/internal/sqlc"
-	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
-	"Alice088/pdf-summarize/pkg/pdf_reader"
+	"Alice088/essentia/internal/app/dependencies"
+	"Alice088/essentia/internal/sqlc"
+	queries "Alice088/essentia/internal/sqlc/postgresql"
+	"Alice088/essentia/pkg/pdf_reader"
 	"context"
 	"fmt"
 	"log/slog"

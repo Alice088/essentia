@@ -1,11 +1,11 @@
 package app
 
 import (
-	"Alice088/pdf-summarize/internal/app/dependencies"
-	"Alice088/pdf-summarize/internal/controller/restapi"
-	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
-	"Alice088/pdf-summarize/internal/workers"
-	"Alice088/pdf-summarize/pkg/env"
+	"Alice088/essentia/internal/app/dependencies"
+	"Alice088/essentia/internal/controller/restapi"
+	queries "Alice088/essentia/internal/sqlc/postgresql"
+	"Alice088/essentia/internal/workers"
+	"Alice088/essentia/pkg/env"
 	"context"
 	"errors"
 	"io"

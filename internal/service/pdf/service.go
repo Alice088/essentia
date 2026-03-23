@@ -1,9 +1,9 @@
 package pdf
 
 import (
-	"Alice088/pdf-summarize/internal/app/dependencies"
-	"Alice088/pdf-summarize/internal/service"
-	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
+	"Alice088/essentia/internal/app/dependencies"
+	"Alice088/essentia/internal/service"
+	queries "Alice088/essentia/internal/sqlc/postgresql"
 	"context"
 	"io"
 

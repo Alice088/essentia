@@ -1,8 +1,8 @@
 package main
 
 import (
-	"Alice088/pdf-summarize/internal/app"
-	"Alice088/pdf-summarize/pkg/env"
+	"Alice088/essentia/internal/app"
+	"Alice088/essentia/pkg/env"
 )
 
 func main() {
