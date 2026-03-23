@@ -1,0 +1,11 @@
+# установить
+sudo apt install cgroup-tools
+
+# создать группу
+sudo cgcreate -g memory,cpu:/pdf-limit
+
+# лимит памяти 100MB
+sudo cgset -r memory.limit_in_bytes=100M pdf-limit
+
+# лимит CPU (25%)
+sudo cgset -r cpu.cfs_quota_us=25000 pdf-limit

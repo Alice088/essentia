@@ -4,14 +4,14 @@ import (
 	"Alice088/pdf-summarize/internal/app/dependencies"
 	"Alice088/pdf-summarize/internal/sqlc"
 	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
-	"bytes"
+	"Alice088/pdf-summarize/pkg/pdf_reader"
 	"context"
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
-	"github.com/ledongthuc/pdf"
 	"github.com/minio/minio-go/v7"
 )
 
@@ -52,26 +52,12 @@ func Parsing(ctx context.Context, task Task, deps *dependencies.AppDeps) {
 		return
 	}
 
-	f, r, err := pdf.Open(tmpFile.Name())
+	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.Workers.Parsing.ReaderContextTimeout)
+	defer cancel()
+	res, err := pdf_reader.Read(ctxTimeout, tmpFile.Name())
 	if err != nil {
-		logger.Error("Failed to open file", "error", err.Error())
-		err = fmt.Errorf("failed to open file: %w", err)
-		return
-	}
-	defer f.Close()
-
-	var buf bytes.Buffer
-	b, err := r.GetPlainText()
-	if err != nil {
-		logger.Error("Failed to get plain text", "error", err.Error())
-		err = fmt.Errorf("failed to get plain text: %w", err)
-		return
-	}
-
-	_, err = buf.ReadFrom(b)
-	if err != nil {
-		logger.Error("Failed to read buffer", "error", err.Error())
-		err = fmt.Errorf("failed to read buffer: %w", err)
+		logger.Error("Failed to read pdf", "error", err.Error())
+		err = fmt.Errorf("failed to read pdf: %w", err)
 		return
 	}
 
@@ -80,8 +66,8 @@ func Parsing(ctx context.Context, task Task, deps *dependencies.AppDeps) {
 		ctxTimeout,
 		"pdf",
 		textObjectName,
-		&buf,
-		int64(buf.Len()),
+		strings.NewReader(res.Text),
+		int64(res.Metadata.Size),
 		minio.PutObjectOptions{
 			ContentType: "text/plain",
 		},
