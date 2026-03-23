@@ -72,7 +72,7 @@ func UpProducerWorkerPool(deps *dependencies.AppDeps, wg *sync.WaitGroup, config
 							task := config.Fn(ctxTimeout, deps)
 
 							select {
-							case <-ctxTimeout.Done():
+							case <-config.Ctx.Done():
 								return
 							case config.Out <- task:
 							}
