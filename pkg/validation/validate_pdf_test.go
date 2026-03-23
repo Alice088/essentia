@@ -1,4 +1,4 @@
-package pdf
+package validation
 
 import (
 	"Alice088/pdf-summarize/pkg/size"
@@ -17,7 +17,7 @@ func TestBasicValid_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.ContentLength = int64(len(body))
 
-	res := BasicValid(req)
+	res := ValidatePDF(req)
 
 	if res.Valid.Error != nil {
 		t.Fatalf("expected no error, got %v", res.Valid.Error)
@@ -43,7 +43,7 @@ func TestBasicValid_FileTooLargeContentLength(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte("%PDF-")))
 	req.ContentLength = size.MB5 + 1
 
-	res := BasicValid(req)
+	res := ValidatePDF(req)
 
 	if res.Valid.Error == nil {
 		t.Fatal("expected error")
@@ -64,7 +64,7 @@ func TestBasicValid_FileTooLargeUnknownSize(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req.Body = http.MaxBytesReader(rr, req.Body, size.MB5)
 
-	res := BasicValid(req)
+	res := ValidatePDF(req)
 
 	if res.Valid.Error == nil {
 		t.Fatal("expected error")
@@ -87,7 +87,7 @@ func TestBasicValid_InvalidHeader(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.ContentLength = int64(len(body))
 
-	res := BasicValid(req)
+	res := ValidatePDF(req)
 
 	if res.Valid.Error == nil {
 		t.Fatal("expected error")
@@ -106,7 +106,7 @@ func TestBasicValid_ShortBody(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.ContentLength = int64(len(body))
 
-	res := BasicValid(req)
+	res := ValidatePDF(req)
 
 	if res.Valid.Error == nil {
 		t.Fatal("expected error")
@@ -126,7 +126,7 @@ func TestBasicValid_UnknownSizeUsesActualBufferedLength(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.ContentLength = -1
 
-	res := BasicValid(req)
+	res := ValidatePDF(req)
 
 	if res.Valid.Error != nil {
 		t.Fatalf("unexpected error: %v", res.Valid.Error)

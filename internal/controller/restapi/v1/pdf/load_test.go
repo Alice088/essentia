@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"Alice088/pdf-summarize/pkg/size"
+
 	"github.com/google/uuid"
 )
 
@@ -19,7 +20,7 @@ type pdfServiceStub struct {
 	createJob func(ctx context.Context, r io.Reader, size int64) (uuid.UUID, error)
 }
 
-func (s pdfServiceStub) CreateJob(ctx context.Context, r io.Reader, size int64) (uuid.UUID, error) {
+func (s pdfServiceStub) Enqueue(ctx context.Context, r io.Reader, size int64) (uuid.UUID, error) {
 	return s.createJob(ctx, r, size)
 }
 
@@ -28,9 +29,9 @@ func newTestHandler(t *testing.T, createJob func(ctx context.Context, r io.Reade
 
 	return &Handler{
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
-		PDFService: pdfServiceStub{createJob: func(ctx context.Context, r io.Reader, size int64) (uuid.UUID, error) {
+		Service: pdfServiceStub{createJob: func(ctx context.Context, r io.Reader, size int64) (uuid.UUID, error) {
 			if createJob == nil {
-				t.Fatal("unexpected CreateJob call")
+				t.Fatal("unexpected Enqueue call")
 			}
 
 			return createJob(ctx, r, size)
@@ -96,7 +97,7 @@ func TestHandlerLoad_Success(t *testing.T) {
 	h.Load().ServeHTTP(rr, req)
 
 	if !called {
-		t.Fatal("expected CreateJob to be called")
+		t.Fatal("expected Enqueue to be called")
 	}
 
 	got := assertJSONResponse(t, rr, http.StatusOK)
@@ -138,7 +139,7 @@ func TestHandlerLoad_UnknownContentLengthUsesBufferedSize(t *testing.T) {
 	h.Load().ServeHTTP(rr, req)
 
 	if !called {
-		t.Fatal("expected CreateJob to be called")
+		t.Fatal("expected Enqueue to be called")
 	}
 
 	_ = assertJSONResponse(t, rr, http.StatusOK)
@@ -250,7 +251,7 @@ func TestHandlerLoad_CreateJobError(t *testing.T) {
 	h.Load().ServeHTTP(rr, req)
 
 	if !called {
-		t.Fatal("expected CreateJob to be called")
+		t.Fatal("expected Enqueue to be called")
 	}
 
 	got := assertJSONResponse(t, rr, http.StatusInternalServerError)

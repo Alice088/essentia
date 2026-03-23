@@ -1,11 +1,9 @@
-package http
+package middleware
 
 import (
 	"Alice088/pdf-summarize/pkg/env"
 	"Alice088/pdf-summarize/pkg/size"
 	"log/slog"
-
-	middlewarex "Alice088/pdf-summarize/internal/http/middleware"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -13,7 +11,7 @@ import (
 	slogchi "github.com/samber/slog-chi"
 )
 
-func UpMiddlewares(r *chi.Mux, cfg env.Config, logger *slog.Logger) {
+func UpMiddlewares(r *chi.Mux, cfg *env.Config, logger *slog.Logger) {
 	r.Use(slogchi.NewWithFilters(
 		logger,
 		slogchi.IgnorePath("/metrics"),
@@ -26,9 +24,9 @@ func UpMiddlewares(r *chi.Mux, cfg env.Config, logger *slog.Logger) {
 	r.Use(middleware.Timeout(cfg.HTTP.Timeout))
 	r.Use(middleware.RequestSize(size.MB5))
 	r.Use(middleware.AllowContentEncoding(cfg.HTTP.AllowContentEncoding...))
-	r.Use(middlewarex.PrometheusHttpRequestTotal)
-	r.Use(middlewarex.HttpRequestsInFlight)
-	r.Use(middlewarex.PrometheusHttpRequestTotalDuration)
+	r.Use(PrometheusHttpRequestTotal)
+	r.Use(HttpRequestsInFlight)
+	r.Use(PrometheusHttpRequestTotalDuration)
 
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins: cfg.HTTP.Origins,

@@ -1,7 +1,8 @@
-package service
+package pdf
 
 import (
-	"Alice088/pdf-summarize/internal/dependencies"
+	"Alice088/pdf-summarize/internal/app/dependencies"
+	"Alice088/pdf-summarize/internal/service"
 	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
 	"context"
 	"io"
@@ -12,26 +13,21 @@ import (
 	"github.com/minio/minio-go/v7"
 )
 
-//go:generate mockery --name=PDFService --output=./mocks --outpkg=mocks
-type PDFService interface {
-	CreateJob(ctx context.Context, r io.Reader, size int64) (uuid.UUID, error)
-}
-
-type pdfService struct {
+type basic struct {
 	MinIO   *minio.Client
 	Queries *queries.Queries
 	Logger  *slog.Logger
 }
 
-func NewService(appDeps dependencies.AppDeps) PDFService {
-	return &pdfService{
+func New(appDeps dependencies.AppDeps) service.PDF {
+	return &basic{
 		MinIO:   appDeps.MinIO,
 		Queries: appDeps.Queries,
 		Logger:  appDeps.Logger,
 	}
 }
 
-func (s *pdfService) CreateJob(
+func (s *basic) Enqueue(
 	ctx context.Context,
 	reader io.Reader,
 	size int64,

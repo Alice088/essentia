@@ -1,7 +1,7 @@
 package workers
 
 import (
-	"Alice088/pdf-summarize/internal/dependencies"
+	"Alice088/pdf-summarize/internal/app/dependencies"
 	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
 	"Alice088/pdf-summarize/pkg/env"
 	"log/slog"

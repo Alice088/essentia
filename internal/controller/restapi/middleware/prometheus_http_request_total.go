@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"Alice088/pdf-summarize/internal/prometheus/metrics"
+	"Alice088/pdf-summarize/pkg/prometheus/metrics"
 	"net/http"
 	"strconv"
 )

@@ -137,7 +137,7 @@ func (q *Queries) CreateChunkTasksBatch(ctx context.Context, arg CreateChunkTask
 	return err
 }
 
-const createJob = `-- name: CreateJob :one
+const createJob = `-- name: Enqueue :one
 INSERT INTO jobs (id, object_key)
 VALUES ($1, $2) RETURNING id, stage, status, object_key, attempts, text_key, cleaned_text_key, summary_key, error, created_at, updated_at
 `

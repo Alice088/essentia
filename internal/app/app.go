@@ -1,36 +1,30 @@
-package main
+package app
 
 import (
-	"Alice088/pdf-summarize/internal/dependencies"
-	httpx "Alice088/pdf-summarize/internal/http"
-	v1 "Alice088/pdf-summarize/internal/http/v1"
-	"Alice088/pdf-summarize/internal/prometheus"
+	"Alice088/pdf-summarize/internal/app/dependencies"
+	"Alice088/pdf-summarize/internal/controller/restapi"
 	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
 	"Alice088/pdf-summarize/pkg/env"
 	"context"
 	"errors"
-	"os/signal"
-	"syscall"
-	"time"
-
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-func main() {
+func Run(cfg *env.Config) {
 	ctx, stop := signal.NotifyContext(
 		context.Background(), syscall.SIGINT, syscall.SIGTERM)
-
-	cfg := env.Load("./.env")
 
 	logRotator := &lumberjack.Logger{
 		Filename:   "./logs/logs.log",
@@ -87,18 +81,14 @@ func main() {
 	}
 
 	r := chi.NewRouter()
-	httpx.UpMiddlewares(r, cfg, logger)
-	prometheus.UpMetrics()
 
-	appDeps := dependencies.AppDeps{
-		Config:  &cfg,
+	deps := dependencies.AppDeps{
+		Config:  cfg,
 		Logger:  logger,
 		MinIO:   minioClient,
 		Queries: q,
 	}
-
-	r.Mount("/v1", v1.Routes(appDeps))
-	r.Handle("/metrics", promhttp.Handler())
+	restapi.NewRouter(r, deps)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.HTTP.Port,
