@@ -40,7 +40,7 @@ func Run(cfg *env.Config) {
 	)
 	logger := slog.New(mw)
 
-	ctxTimeout, cancel := context.WithTimeout(ctx, 2*time.Second)
+	ctxTimeout, cancel := context.WithTimeout(ctx, cfg.DB.OperationTimeout)
 	defer cancel()
 
 	conn, err := pgx.Connect(ctxTimeout, cfg.DB.DatabaseURL)
@@ -49,7 +49,7 @@ func Run(cfg *env.Config) {
 		os.Exit(1)
 	}
 	defer func() {
-		ctx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
+		ctx, cancel = context.WithTimeout(context.Background(), cfg.DB.OperationTimeout)
 		defer cancel()
 
 		if err := conn.Close(ctx); err != nil {
@@ -68,7 +68,7 @@ func Run(cfg *env.Config) {
 		os.Exit(1)
 	}
 
-	ctxTimeout, cancel = context.WithTimeout(ctx, 3*time.Second)
+	ctxTimeout, cancel = context.WithTimeout(ctx, cfg.MinIO.OperationTimeout)
 	defer cancel()
 
 	err = minioClient.MakeBucket(ctxTimeout, "pdf", minio.MakeBucketOptions{Region: cfg.MinIO.Location})

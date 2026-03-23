@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/ledongthuc/pdf"
 	"github.com/minio/minio-go/v7"
@@ -16,12 +17,16 @@ import (
 
 // TODO
 // - Добавить проверку что если это не первая попытка попытаться взять text из minio (или проверять что есть text_key)
-func (w *Worker) Parsing(ctx context.Context, task Task) {
-	logger := w.Logger.With("uuid=", task.UUID.String(), "stage", "parsing")
+func Parsing(ctx context.Context, task Task, deps *dependencies.AppDeps) {
+	logger := deps.Logger.With("uuid=", task.UUID.String(), "stage", "parsing")
 	textObjectName := fmt.Sprintf("%s-text.txt", task.UUID.String())
 
 	var err error
-	defer w.failJob(ctx, logger, task, &err)
+	defer func() {
+		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		failJob(ctxTimeout, task, logger, &err, deps)
+	}()
 
 	tmpFile, err := os.CreateTemp("", "*.pdf")
 	if err != nil {
@@ -38,8 +43,8 @@ func (w *Worker) Parsing(ctx context.Context, task Task) {
 		}
 	}()
 
-	ctxTimeout, cancel := context.WithTimeout(ctx, w.Config.ContextTimeout)
-	err = w.MinIO.FGetObject(ctxTimeout, "pdf", task.ObjectKey, tmpFile.Name(), minio.GetObjectOptions{})
+	ctxTimeout, cancel := context.WithTimeout(ctx, deps.Config.MinIO.OperationTimeout)
+	err = deps.MinIO.FGetObject(ctxTimeout, "pdf", task.ObjectKey, tmpFile.Name(), minio.GetObjectOptions{})
 	cancel()
 	if err != nil {
 		logger.Error("Failed to get file from minio", "error", err.Error())
@@ -70,8 +75,8 @@ func (w *Worker) Parsing(ctx context.Context, task Task) {
 		return
 	}
 
-	ctxTimeout, cancel = context.WithTimeout(ctx, w.Config.ContextTimeout)
-	_, err = w.MinIO.PutObject(
+	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.MinIO.OperationTimeout)
+	_, err = deps.MinIO.PutObject(
 		ctxTimeout,
 		"pdf",
 		textObjectName,
@@ -88,8 +93,8 @@ func (w *Worker) Parsing(ctx context.Context, task Task) {
 		return
 	}
 
-	ctxTimeout, cancel = context.WithTimeout(ctx, w.Config.ContextTimeout)
-	err = w.Queries.SetTextKey(ctxTimeout, queries.SetTextKeyParams{
+	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.DB.OperationTimeout)
+	err = deps.Queries.SetTextKey(ctxTimeout, queries.SetTextKeyParams{
 		ID:      sqlc.ToUUID(task.UUID),
 		TextKey: sqlc.ToTEXT(textObjectName),
 	})
@@ -100,8 +105,8 @@ func (w *Worker) Parsing(ctx context.Context, task Task) {
 		return
 	}
 
-	ctxTimeout, cancel = context.WithTimeout(ctx, w.Config.ContextTimeout)
-	err = w.Queries.AdvanceJobStage(ctxTimeout, queries.AdvanceJobStageParams{
+	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.DB.OperationTimeout)
+	err = deps.Queries.AdvanceJobStage(ctxTimeout, queries.AdvanceJobStageParams{
 		ID:    sqlc.ToUUID(task.UUID),
 		Stage: "cleaning",
 	})
@@ -113,13 +118,14 @@ func (w *Worker) Parsing(ctx context.Context, task Task) {
 	}
 }
 
-func UpParsingWorkerPool(deps dependencies.AppDeps, workersCount int, ctx context.Context, tasks <-chan Task) {
+func UpParsingWorkerPool(deps *dependencies.AppDeps, workersCount int, ctx context.Context, tasks <-chan Task) {
 	go func() {
 		for range workersCount {
 			go func() {
-				w := NewWorker(deps)
 				for task := range tasks {
-					w.Parsing(ctx, task)
+					ctxTimeout, cancel := context.WithTimeout(ctx, deps.Config.Workers.Parsing.ContextTimeout)
+					Parsing(ctxTimeout, task, deps)
+					cancel()
 				}
 			}()
 		}
@@ -127,14 +133,12 @@ func UpParsingWorkerPool(deps dependencies.AppDeps, workersCount int, ctx contex
 
 }
 
-func (w *Worker) failJob(ctx context.Context, logger *slog.Logger, task Task, err *error) {
+func failJob(ctx context.Context, task Task, logger *slog.Logger, err *error, deps *dependencies.AppDeps) {
 	if err != nil && *err != nil {
-		ctxTimeout, cancel := context.WithTimeout(ctx, w.Config.ContextTimeout)
-		dbErr := w.Queries.FailJob(ctxTimeout, queries.FailJobParams{
+		dbErr := deps.Queries.FailJob(ctx, queries.FailJobParams{
 			ID:    sqlc.ToUUID(task.UUID),
 			Error: sqlc.ToTEXT((*err).Error()),
 		})
-		cancel()
 		if dbErr != nil {
 			logger.Error("Failed to fail job", "error", dbErr.Error())
 		}

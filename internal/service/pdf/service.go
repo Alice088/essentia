@@ -6,7 +6,6 @@ import (
 	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
 	"context"
 	"io"
-	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -14,16 +13,12 @@ import (
 )
 
 type basic struct {
-	MinIO   *minio.Client
-	Queries *queries.Queries
-	Logger  *slog.Logger
+	Deps *dependencies.AppDeps
 }
 
-func New(appDeps dependencies.AppDeps) service.PDF {
+func New(appDeps *dependencies.AppDeps) service.PDF {
 	return &basic{
-		MinIO:   appDeps.MinIO,
-		Queries: appDeps.Queries,
-		Logger:  appDeps.Logger,
+		Deps: appDeps,
 	}
 }
 
@@ -38,15 +33,20 @@ func (s *basic) Enqueue(
 	uploaded := false
 	defer func() {
 		if !uploaded {
-			err := s.MinIO.RemoveObject(ctx, "pdf", objectKey, minio.RemoveObjectOptions{})
+			ctxTimeout, cancel := context.WithTimeout(context.Background(), s.Deps.Config.MinIO.OperationTimeout)
+			defer cancel()
+
+			err := s.Deps.MinIO.RemoveObject(ctxTimeout, "pdf", objectKey, minio.RemoveObjectOptions{})
 			if err != nil {
-				s.Logger.Error("failed to remove object", "object", objectKey, "error", err)
+				s.Deps.Logger.Error("failed to remove object", "object", objectKey, "error", err)
 			}
 		}
 	}()
 
-	_, err := s.MinIO.PutObject(
-		ctx,
+	ctxTimeout, cancel := context.WithTimeout(ctx, s.Deps.Config.MinIO.OperationTimeout)
+	defer cancel()
+	_, err := s.Deps.MinIO.PutObject(
+		ctxTimeout,
 		"pdf",
 		objectKey,
 		reader,
@@ -58,9 +58,10 @@ func (s *basic) Enqueue(
 	if err != nil {
 		return uuid.Nil, err
 	}
-	uploaded = true
 
-	_, err = s.Queries.CreateJob(ctx, queries.CreateJobParams{
+	ctxTimeout, cancel = context.WithTimeout(ctx, s.Deps.Config.DB.OperationTimeout)
+	defer cancel()
+	_, err = s.Deps.Queries.CreateJob(ctxTimeout, queries.CreateJobParams{
 		ID: pgtype.UUID{
 			Bytes: jobID,
 			Valid: true,
@@ -68,9 +69,9 @@ func (s *basic) Enqueue(
 		ObjectKey: objectKey,
 	})
 	if err != nil {
-		_ = s.MinIO.RemoveObject(ctx, "pdf", objectKey, minio.RemoveObjectOptions{})
 		return uuid.Nil, err
 	}
 
+	uploaded = true
 	return jobID, nil
 }

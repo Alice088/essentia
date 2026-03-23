@@ -21,18 +21,24 @@ type HTTP struct {
 }
 
 type DB struct {
-	DatabaseURL string `env:"DATABASE_URL,required"`
+	DatabaseURL      string        `env:"DATABASE_URL,required"`
+	OperationTimeout time.Duration `env:"DATABASE_OPERATION_TIMEOUT,required"`
 }
 
 type MinIO struct {
-	Endpoint  string `env:"MINIO_ENDPOINT,required"`
-	AccessKey string `env:"MINIO_ACCESS_KEY,required"`
-	SecretKey string `env:"MINIO_SECRET_KEY,required"`
-	SSL       bool   `env:"MINIO_SSL,required"`
-	Location  string `env:"MINIO_LOCATION,required"`
+	Endpoint         string        `env:"MINIO_ENDPOINT,required"`
+	AccessKey        string        `env:"MINIO_ACCESS_KEY,required"`
+	SecretKey        string        `env:"MINIO_SECRET_KEY,required"`
+	SSL              bool          `env:"MINIO_SSL,required"`
+	Location         string        `env:"MINIO_LOCATION,required"`
+	OperationTimeout time.Duration `env:"MINIO_OPERATION_TIMEOUT,required"`
 }
 
 type Workers struct {
-	ContextTimeout time.Duration `env:"WORKERS_CONTEXT_TIMEOUT,required"`
-	WorkerPoolMax  int           `env:"WORKERS_WORKER_POOL_MAX,required"`
+	WorkerPoolMax int `env:"WORKERS_WORKER_POOL_MAX,required"`
+	Parsing       WorkersParsing
+}
+
+type WorkersParsing struct {
+	ContextTimeout time.Duration `env:"WORKERS_PARSING_CONTEXT_TIMEOUT,required"`
 }
