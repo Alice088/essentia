@@ -104,21 +104,6 @@ func Parsing(ctx context.Context, task Task, deps *dependencies.AppDeps) {
 	}
 }
 
-func UpParsingWorkerPool(deps *dependencies.AppDeps, workersCount int, ctx context.Context, tasks <-chan Task) {
-	go func() {
-		for range workersCount {
-			go func() {
-				for task := range tasks {
-					ctxTimeout, cancel := context.WithTimeout(ctx, deps.Config.Workers.Parsing.ContextTimeout)
-					Parsing(ctxTimeout, task, deps)
-					cancel()
-				}
-			}()
-		}
-	}()
-
-}
-
 func failJob(ctx context.Context, task Task, logger *slog.Logger, err *error, deps *dependencies.AppDeps) {
 	if err != nil && *err != nil {
 		dbErr := deps.Queries.FailJob(ctx, queries.FailJobParams{

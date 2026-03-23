@@ -23,7 +23,7 @@ type Handler struct {
 	Service service.PDF
 }
 
-func NewHandler(appDeps dependencies.AppDeps, serv service.PDF) Handler {
+func NewHandler(appDeps *dependencies.AppDeps, serv service.PDF) Handler {
 	return Handler{
 		Logger:  appDeps.Logger,
 		Queries: appDeps.Queries,

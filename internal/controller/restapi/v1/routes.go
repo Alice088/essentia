@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func Routes(appDeps dependencies.AppDeps) chi.Router {
+func Routes(appDeps *dependencies.AppDeps) chi.Router {
 	r := chi.NewRouter()
 
 	pdfHandler := pdf.NewHandler(appDeps, pdfservice.New(appDeps))

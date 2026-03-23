@@ -4,6 +4,7 @@ import (
 	"Alice088/pdf-summarize/internal/app/dependencies"
 	"Alice088/pdf-summarize/internal/controller/restapi"
 	queries "Alice088/pdf-summarize/internal/sqlc/postgresql"
+	"Alice088/pdf-summarize/internal/workers"
 	"Alice088/pdf-summarize/pkg/env"
 	"context"
 	"errors"
@@ -12,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -82,13 +84,26 @@ func Run(cfg *env.Config) {
 
 	r := chi.NewRouter()
 
-	deps := dependencies.AppDeps{
+	deps := &dependencies.AppDeps{
 		Config:  cfg,
 		Logger:  logger,
 		MinIO:   minioClient,
 		Queries: q,
 	}
 	restapi.NewRouter(r, deps)
+
+	wgConsumer := &sync.WaitGroup{}
+	wgProducer := &sync.WaitGroup{}
+
+	tasks := make(chan workers.Task)
+	workers.UpConsumerWorkerPool(deps, wgConsumer, workers.WorkerPoolConfig{
+		Timeout:      cfg.Workers.Parsing.ContextTimeout,
+		WorkersCount: 2,
+		Fn:           workers.Parsing,
+		In:           tasks,
+	})
+
+	close(tasks)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.HTTP.Port,
@@ -118,4 +133,13 @@ func Run(cfg *env.Config) {
 		logger.Error("Failed to shutdown server", "error", err.Error())
 		os.Exit(1)
 	}
+
+	logger.Info("waiting for producer workers...")
+	wgProducer.Wait()
+	close(tasks)
+
+	logger.Info("waiting for consumer workers...")
+	wgConsumer.Wait()
+
+	logger.Info("finish!")
 }
