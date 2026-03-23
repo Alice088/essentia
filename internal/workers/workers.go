@@ -26,7 +26,7 @@ type WorkerPoolOutConfig struct {
 	Timeout      time.Duration
 	Tick         time.Duration
 	Out          chan Task
-	Ctx          context.Context
+	GlobalCtx    context.Context
 	Fn           func(ctx context.Context, deps *dependencies.AppDeps) Task
 }
 
@@ -62,7 +62,7 @@ func UpProducerWorkerPool(deps *dependencies.AppDeps, wg *sync.WaitGroup, config
 					sem <- struct{}{}
 
 					select {
-					case <-config.Ctx.Done():
+					case <-config.GlobalCtx.Done():
 						return
 					case <-ticker.C:
 						go func() {
@@ -72,7 +72,7 @@ func UpProducerWorkerPool(deps *dependencies.AppDeps, wg *sync.WaitGroup, config
 							task := config.Fn(ctxTimeout, deps)
 
 							select {
-							case <-config.Ctx.Done():
+							case <-config.GlobalCtx.Done():
 								return
 							case config.Out <- task:
 							}
