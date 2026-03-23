@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/go-chi/httprate"
 	slogchi "github.com/samber/slog-chi"
 )
 
@@ -27,6 +28,7 @@ func UpMiddlewares(r *chi.Mux, cfg *env.Config, logger *slog.Logger) {
 	r.Use(PrometheusHttpRequestTotal)
 	r.Use(HttpRequestsInFlight)
 	r.Use(PrometheusHttpRequestTotalDuration)
+	r.Use(httprate.LimitByIP(cfg.HTTP.RateLimitRequestsCount, cfg.HTTP.RateLimitPerSecond))
 
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins: cfg.HTTP.Origins,

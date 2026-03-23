@@ -11,11 +11,13 @@ type Config struct {
 }
 
 type HTTP struct {
-	MaxUser              int           `env:"HTTP_MAX_USERS,required"`
-	Timeout              time.Duration `env:"HTTP_TIMEOUT,required"`
-	AllowContentEncoding []string      `env:"HTTP_ALLOW_CONTENT_ENCODING,required"`
-	Origins              []string      `env:"HTTP_ORIGINS,required"`
-	Port                 string        `env:"HTTP_PORT,required"`
+	MaxUser                int           `env:"HTTP_MAX_USERS,required"`
+	Timeout                time.Duration `env:"HTTP_TIMEOUT,required"`
+	AllowContentEncoding   []string      `env:"HTTP_ALLOW_CONTENT_ENCODING,required"`
+	Origins                []string      `env:"HTTP_ORIGINS,required"`
+	Port                   string        `env:"HTTP_PORT,required"`
+	RateLimitRequestsCount int           `env:"HTTP_RATE_LIMIT_REQUESTS_COUNT,required"`
+	RateLimitPerSecond     time.Duration `env:"HTTP_RATE_LIMIT_PER_SECOND,required"`
 }
 
 type DB struct {
