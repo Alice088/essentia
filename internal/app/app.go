@@ -110,8 +110,8 @@ func Run(cfg *env.Config) {
 	workers.UpWriteNewestTasksWorkerPool(deps, wgProducer, workers.WriteNewestTasksWorkerPoolConfig{
 		Timeout:      cfg.Workers.Parsing.ContextTimeout,
 		WorkersCount: 2,
-		Fn:           workers.WriteNewestTasks,
-		Out:          tasks,
+		Fn:           workers.WriteNewestJobs,
+		Jobs:         tasks,
 		GlobalCtx:    ctx,
 	})
 

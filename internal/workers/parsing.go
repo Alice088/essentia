@@ -16,20 +16,20 @@ import (
 
 // TODO
 // - Добавить проверку что если это не первая попытка попытаться взять text из minio (или проверять что есть text_key)
-func Parsing(ctx context.Context, task Job, deps *dependencies.AppDeps) {
-	logger := deps.Logger.With("uuid=", task.UUID.String(), "stage", "parsing")
-	textObjectName := fmt.Sprintf("%s-text.txt", task.UUID.String())
+func Parsing(ctx context.Context, job Job, deps *dependencies.AppDeps) {
+	logger := deps.Logger.With("uuid=", job.UUID.String(), "stage", "parsing")
+	textObjectName := fmt.Sprintf("%s.txt", job.UUID.String())
 
 	var err error
 	defer func() {
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), deps.Config.DB.OperationTimeout)
 		defer cancel()
-		failJob(ctxTimeout, task, logger, &err, deps)
+		failJob(ctxTimeout, job, logger, &err, deps)
 	}()
 
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), deps.Config.DB.OperationTimeout)
 	err = deps.Queries.SetJobStage(ctxTimeout, queries.SetJobStageParams{
-		ID:    sqlc.ToUUID(task.UUID),
+		ID:    sqlc.ToUUID(job.UUID),
 		Stage: queries.JobStageParsing,
 	})
 	cancel()
@@ -55,7 +55,7 @@ func Parsing(ctx context.Context, task Job, deps *dependencies.AppDeps) {
 	}()
 
 	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.MinIO.OperationTimeout)
-	err = deps.MinIO.FGetObject(ctxTimeout, "pdf", task.ObjectKey, tmpFile.Name(), minio.GetObjectOptions{})
+	err = deps.MinIO.FGetObject(ctxTimeout, "pdf", job.ObjectKey, tmpFile.Name(), minio.GetObjectOptions{})
 	cancel()
 	if err != nil {
 		logger.Error("Failed to get file from minio", "error", err.Error())
@@ -92,7 +92,7 @@ func Parsing(ctx context.Context, task Job, deps *dependencies.AppDeps) {
 
 	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.DB.OperationTimeout)
 	err = deps.Queries.SetTextKey(ctxTimeout, queries.SetTextKeyParams{
-		ID:      sqlc.ToUUID(task.UUID),
+		ID:      sqlc.ToUUID(job.UUID),
 		TextKey: sqlc.ToTEXT(textObjectName),
 	})
 	cancel()
@@ -104,7 +104,7 @@ func Parsing(ctx context.Context, task Job, deps *dependencies.AppDeps) {
 
 	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.DB.OperationTimeout)
 	err = deps.Queries.AdvanceJobStage(ctxTimeout, queries.AdvanceJobStageParams{
-		ID:    sqlc.ToUUID(task.UUID),
+		ID:    sqlc.ToUUID(job.UUID),
 		Stage: "cleaning",
 	})
 	cancel()
