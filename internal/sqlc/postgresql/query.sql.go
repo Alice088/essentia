@@ -29,6 +29,54 @@ func (q *Queries) AdvanceJobStage(ctx context.Context, arg AdvanceJobStageParams
 	return err
 }
 
+const claimNextJobForStage = `-- name: ClaimNextJobForStage :one
+WITH cte AS (
+    SELECT id
+    FROM jobs
+    WHERE jobs.status = 'pending'
+      AND jobs.stage = $1
+    ORDER BY created_at
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE jobs j
+SET status = 'processing',
+    updated_at = NOW()
+FROM cte
+WHERE j.id = cte.id
+RETURNING
+    j.id,
+    j.stage,
+    j.status,
+    j.object_key,
+    j.attempts,
+    j.text_key,
+    j.cleaned_text_key,
+    j.summary_key,
+    j.error,
+    j.created_at,
+    j.updated_at
+`
+
+func (q *Queries) ClaimNextJobForStage(ctx context.Context, stage JobStage) (Job, error) {
+	row := q.db.QueryRow(ctx, claimNextJobForStage, stage)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.Stage,
+		&i.Status,
+		&i.ObjectKey,
+		&i.Attempts,
+		&i.TextKey,
+		&i.CleanedTextKey,
+		&i.SummaryKey,
+		&i.Error,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const completeChunkTask = `-- name: CompleteChunkTask :exec
 UPDATE chunk_tasks
 SET status = 'completed',
@@ -137,7 +185,7 @@ func (q *Queries) CreateChunkTasksBatch(ctx context.Context, arg CreateChunkTask
 	return err
 }
 
-const createJob = `-- name: Enqueue :one
+const createJob = `-- name: CreateJob :one
 INSERT INTO jobs (id, object_key)
 VALUES ($1, $2) RETURNING id, stage, status, object_key, attempts, text_key, cleaned_text_key, summary_key, error, created_at, updated_at
 `
@@ -311,35 +359,6 @@ func (q *Queries) GetNextChunkTaskGlobal(ctx context.Context) (ChunkTask, error)
 		&i.Attempts,
 		&i.ChunkKey,
 		&i.ResultKey,
-		&i.Error,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getNextJobForStage = `-- name: GetNextJobForStage :one
-SELECT id, stage, status, object_key, attempts, text_key, cleaned_text_key, summary_key, error, created_at, updated_at
-FROM jobs
-WHERE status = 'pending'
-  AND stage = $1
-ORDER BY created_at LIMIT 1
-FOR
-UPDATE SKIP LOCKED
-`
-
-func (q *Queries) GetNextJobForStage(ctx context.Context, stage JobStage) (Job, error) {
-	row := q.db.QueryRow(ctx, getNextJobForStage, stage)
-	var i Job
-	err := row.Scan(
-		&i.ID,
-		&i.Stage,
-		&i.Status,
-		&i.ObjectKey,
-		&i.Attempts,
-		&i.TextKey,
-		&i.CleanedTextKey,
-		&i.SummaryKey,
 		&i.Error,
 		&i.CreatedAt,
 		&i.UpdatedAt,

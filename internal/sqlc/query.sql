@@ -24,15 +24,33 @@ FROM jobs
 WHERE id = $1;
 
 
--- name: GetNextJobForStage :one
-SELECT *
-FROM jobs
-WHERE status = 'pending'
-  AND stage = $1
-ORDER BY created_at LIMIT 1
-FOR
-UPDATE SKIP LOCKED;
-
+-- name: ClaimNextJobForStage :one
+WITH cte AS (
+    SELECT id
+    FROM jobs
+    WHERE jobs.status = 'pending'
+      AND jobs.stage = $1
+    ORDER BY created_at
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE jobs j
+SET status = 'processing',
+    updated_at = NOW()
+FROM cte
+WHERE j.id = cte.id
+RETURNING
+    j.id,
+    j.stage,
+    j.status,
+    j.object_key,
+    j.attempts,
+    j.text_key,
+    j.cleaned_text_key,
+    j.summary_key,
+    j.error,
+    j.created_at,
+    j.updated_at;
 
 -- name: SetJobProcessing :exec
 UPDATE jobs

@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -36,28 +36,31 @@ func Run(cfg *env.Config) {
 		Compress:   true,
 	}
 
+	var loggerLever slog.Level
+	if cfg.Env == "dev" {
+		loggerLever = slog.LevelDebug
+	} else {
+		loggerLever = slog.LevelInfo
+	}
+
 	mw := slog.NewJSONHandler(
 		io.MultiWriter(os.Stdout, logRotator),
-		nil,
+		&slog.HandlerOptions{
+			Level: loggerLever,
+		},
 	)
+
 	logger := slog.New(mw)
 
 	ctxTimeout, cancel := context.WithTimeout(ctx, cfg.DB.OperationTimeout)
 	defer cancel()
 
-	conn, err := pgx.Connect(ctxTimeout, cfg.DB.DatabaseURL)
+	conn, err := pgxpool.New(ctxTimeout, cfg.DB.DatabaseURL)
 	if err != nil {
 		logger.Error("Unable to connect to database", "error", err.Error())
-		os.Exit(1)
+		return
 	}
-	defer func() {
-		ctx, cancel = context.WithTimeout(context.Background(), cfg.DB.OperationTimeout)
-		defer cancel()
-
-		if err := conn.Close(ctx); err != nil {
-			logger.Error("failed to close db", "error", err)
-		}
-	}()
+	defer conn.Close()
 
 	q := queries.New(conn)
 
@@ -67,7 +70,7 @@ func Run(cfg *env.Config) {
 	})
 	if err != nil {
 		logger.Error("Unable to connect to minio", "error", err.Error())
-		os.Exit(1)
+		return
 	}
 
 	ctxTimeout, cancel = context.WithTimeout(ctx, cfg.MinIO.OperationTimeout)
@@ -78,7 +81,7 @@ func Run(cfg *env.Config) {
 		exists, errBucketExists := minioClient.BucketExists(ctxTimeout, "pdf")
 		if errBucketExists != nil || !exists {
 			logger.Error("Failed to check bucket exist or bucket doesn't exist", "error", err.Error())
-			os.Exit(1)
+			return
 		}
 	}
 
@@ -89,6 +92,7 @@ func Run(cfg *env.Config) {
 		Logger:  logger,
 		MinIO:   minioClient,
 		Queries: q,
+		DB:      conn,
 	}
 	restapi.NewRouter(r, deps)
 
