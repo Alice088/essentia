@@ -5,11 +5,13 @@ import (
 	"Alice088/essentia/internal/sqlc"
 	queries "Alice088/essentia/internal/sqlc/postgresql"
 	"Alice088/essentia/pkg/pdf_reader"
+	"Alice088/essentia/pkg/prometheus/metrics"
 	"context"
 	"fmt"
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/minio/minio-go/v7"
 )
@@ -19,12 +21,20 @@ import (
 func Parsing(ctx context.Context, job Job, deps *dependencies.AppDeps) {
 	logger := deps.Logger.With("uuid=", job.UUID.String(), "stage", "parsing")
 	textObjectName := fmt.Sprintf("%s.txt", job.UUID.String())
+	start := time.Now()
 
 	var err error
 	defer func() {
+		status := metrics.Success
+		if err != nil {
+			status = metrics.Failed
+		}
+
+		metrics.ParsingDurationSeconds.WithLabelValues(status).Observe(time.Since(start).Seconds())
+
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), deps.Config.DB.OperationTimeout)
 		defer cancel()
-		failJob(ctxTimeout, job, logger, &err, deps)
+		isFailed(ctxTimeout, job, logger, &err, deps)
 	}()
 
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), deps.Config.DB.OperationTimeout)
@@ -115,8 +125,10 @@ func Parsing(ctx context.Context, job Job, deps *dependencies.AppDeps) {
 	}
 }
 
-func failJob(ctx context.Context, task Job, logger *slog.Logger, err *error, deps *dependencies.AppDeps) {
+func isFailed(ctx context.Context, task Job, logger *slog.Logger, err *error, deps *dependencies.AppDeps) {
 	if err != nil && *err != nil {
+		metrics.ParsingTotal.WithLabelValues(metrics.Failed).Inc()
+
 		dbErr := deps.Queries.FailJob(ctx, queries.FailJobParams{
 			ID:    sqlc.ToUUID(task.UUID),
 			Error: sqlc.ToTEXT((*err).Error()),
@@ -124,5 +136,7 @@ func failJob(ctx context.Context, task Job, logger *slog.Logger, err *error, dep
 		if dbErr != nil {
 			logger.Error("Failed to fail job", "error", dbErr.Error())
 		}
+	} else {
+		metrics.ParsingTotal.WithLabelValues(metrics.Success).Inc()
 	}
 }

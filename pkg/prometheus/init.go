@@ -11,4 +11,5 @@ func UpMetrics() {
 	prometheus.MustRegister(metrics.HttpRequestsInFlight)
 	prometheus.MustRegister(metrics.HttpRequestTotalDuration)
 	prometheus.MustRegister(metrics.ParsingTotal)
+	prometheus.MustRegister(metrics.ParsingDurationSeconds)
 }
