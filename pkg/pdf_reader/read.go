@@ -4,11 +4,25 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 )
 
 func Read(ctx context.Context, path string) (ReadResponse, error) {
+	if !filepath.IsAbs(path) {
+		return ReadResponse{}, fmt.Errorf("path must be absolute")
+	}
+
+	fi, err := os.Lstat(path)
+	if err != nil {
+		return ReadResponse{}, fmt.Errorf("stat failed: %w", err)
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		return ReadResponse{}, fmt.Errorf("symlinks not allowed")
+	}
+
 	cmd := exec.CommandContext(
 		ctx,
 		"systemd-run",
@@ -18,6 +32,7 @@ func Read(ctx context.Context, path string) (ReadResponse, error) {
 		"-p", "MemoryMax=100M",
 		"-p", "MemoryHigh=90M",
 		"-p", "CPUQuota=25%",
+		"-p", "TasksMax=100",
 		"/home/gosha/Documents/projects/essentia/build/pdf_reader",
 		path,
 	)
