@@ -2,36 +2,21 @@ package main
 
 import (
 	"Alice088/essentia/pkg/pdf_reader"
+	"Alice088/essentia/pkg/size"
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/ledongthuc/pdf"
 )
 
-//TODO
-//1) Библиотека устаревшая  - не поддерживает PDF 1.7
-//2) Panic вместо graceful error - небезопасно
-//============================================
-//1. PDF с 2003 объектами - принят
-//    Риск: перегрузка памяти парсера
-//    Нужно: лимит на количество объектов (max 1000)
-//2. PDF с рекурсивными ссылками - принят
-//    Риск: бесконечная рекурсия, stack overflow
-//    Нужно: лимит на глубину рекурсии (max 50)
-//3. PDF с JavaScript - принят
-//    Риск: XSS при просмотре, выполнение кода
-//    Нужно: запрет JavaScript действий
-//4. PDF со сжатыми данными - принят
-//    Риск: ZIP bomb (10KB → 10MB при распаковке)
-//    Нужно: лимит на распакованный размер
-
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
 			_ = json.NewEncoder(os.Stdout).Encode(pdf_reader.ReadResponse{
-				Error: "failed to parse pdf: " + r.(error).Error(),
+				Error: fmt.Sprintf("panic: %v", r),
 			})
 		}
 	}()
@@ -45,11 +30,25 @@ func main() {
 
 	path := os.Args[1]
 
+	fi, err := os.Lstat(path)
+	if err != nil {
+		writeErr(err)
+		return
+	}
+
+	if fi.Mode()&os.ModeSymlink != 0 {
+		writeErr(fmt.Errorf("symlinks not allowed"))
+		return
+	}
+
+	if fi.Size() > size.MB5 {
+		writeErr(fmt.Errorf("file too large"))
+		return
+	}
+
 	f, r, err := pdf.Open(path)
 	if err != nil {
-		_ = json.NewEncoder(os.Stdout).Encode(pdf_reader.ReadResponse{
-			Error: fmt.Sprintf("failed to open pdf: %s", err.Error()),
-		})
+		writeErr(fmt.Errorf("failed to open pdf: %w", err))
 		return
 	}
 	defer f.Close()
@@ -57,17 +56,13 @@ func main() {
 	var buf bytes.Buffer
 	text, err := r.GetPlainText()
 	if err != nil {
-		_ = json.NewEncoder(os.Stdout).Encode(pdf_reader.ReadResponse{
-			Error: fmt.Sprintf("failed to get pdf text: %s\n", err.Error()),
-		})
+		writeErr(fmt.Errorf("failed to get pdf text: %w\n", err))
 		return
 	}
 
-	_, err = buf.ReadFrom(text)
-	if err != nil {
-		_ = json.NewEncoder(os.Stdout).Encode(pdf_reader.ReadResponse{
-			Error: fmt.Sprintf("failed to read buffer: %s\n", err.Error()),
-		})
+	_, err = io.CopyN(&buf, text, size.MB5)
+	if err != nil && err != io.EOF {
+		writeErr(fmt.Errorf("failed to read buffer: %w\n", err))
 		return
 	}
 
@@ -77,5 +72,11 @@ func main() {
 		Metadata: pdf_reader.Metadata{
 			Size: buf.Len(),
 		},
+	})
+}
+
+func writeErr(err error) {
+	_ = json.NewEncoder(os.Stdout).Encode(pdf_reader.ReadResponse{
+		Error: err.Error(),
 	})
 }
