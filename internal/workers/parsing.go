@@ -24,6 +24,8 @@ func Parsing(ctx context.Context, job Job, deps *dependencies.AppDeps) {
 	start := time.Now()
 
 	var err error
+	var pdfSizeBytes int64
+	hasPDFSize := false
 	defer func() {
 		status := metrics.Success
 		if err != nil {
@@ -31,6 +33,9 @@ func Parsing(ctx context.Context, job Job, deps *dependencies.AppDeps) {
 		}
 
 		metrics.ParsingDurationSeconds.WithLabelValues(status).Observe(time.Since(start).Seconds())
+		if hasPDFSize {
+			metrics.ParsingPDFSizeBytes.WithLabelValues(status).Observe(float64(pdfSizeBytes))
+		}
 
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), deps.Config.DB.OperationTimeout)
 		defer cancel()
@@ -72,6 +77,16 @@ func Parsing(ctx context.Context, job Job, deps *dependencies.AppDeps) {
 		err = fmt.Errorf("failed to get file from minio: %w", err)
 		return
 	}
+
+	tmpFileInfo, tmpStatErr := tmpFile.Stat()
+	if tmpStatErr != nil {
+		logger.Error("Failed to stat tmp file", "tmp_file", tmpFile.Name(), "error", tmpStatErr.Error())
+		err = fmt.Errorf("failed to stat tmp file: %w", tmpStatErr)
+		return
+	}
+
+	pdfSizeBytes = tmpFileInfo.Size()
+	hasPDFSize = true
 
 	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.Workers.Parsing.ReaderContextTimeout)
 	defer cancel()
