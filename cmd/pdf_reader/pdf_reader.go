@@ -28,6 +28,14 @@ import (
 //    Нужно: лимит на распакованный размер
 
 func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			_ = json.NewEncoder(os.Stdout).Encode(pdf_reader.ReadResponse{
+				Error: "failed to parse pdf: " + r.(error).Error(),
+			})
+		}
+	}()
+
 	if len(os.Args) < 2 {
 		_ = json.NewEncoder(os.Stdout).Encode(pdf_reader.ReadResponse{
 			Error: "no file specified",
