@@ -463,14 +463,19 @@ func (q *Queries) SetCleanedTextKey(ctx context.Context, arg SetCleanedTextKeyPa
 	return err
 }
 
-const setJobProcessing = `-- name: SetJobProcessing :exec
+const setJobStage = `-- name: SetJobStage :exec
 UPDATE jobs
-SET status = 'processing'
-WHERE id = $1
+SET stage = $1
+WHERE id = $2
 `
 
-func (q *Queries) SetJobProcessing(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, setJobProcessing, id)
+type SetJobStageParams struct {
+	Stage JobStage
+	ID    pgtype.UUID
+}
+
+func (q *Queries) SetJobStage(ctx context.Context, arg SetJobStageParams) error {
+	_, err := q.db.Exec(ctx, setJobStage, arg.Stage, arg.ID)
 	return err
 }
 

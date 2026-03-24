@@ -2,6 +2,7 @@ package workers
 
 import (
 	"Alice088/essentia/internal/app/dependencies"
+	queries "Alice088/essentia/internal/sqlc/postgresql"
 	"context"
 	"errors"
 	"fmt"
@@ -35,7 +36,7 @@ func WriteNewestTasks(ctx context.Context, deps *dependencies.AppDeps) (job Job,
 
 	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.DB.OperationTimeout)
 	defer cancel()
-	j, err := deps.Queries.WithTx(tx).ClaimNextJobForStage(ctxTimeout, "uploaded")
+	j, err := deps.Queries.WithTx(tx).ClaimNextJobForStage(ctxTimeout, queries.JobStageUploaded)
 	if err != nil {
 		err = fmt.Errorf("failed to claim next job: %w", err)
 		return

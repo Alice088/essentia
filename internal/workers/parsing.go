@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/minio/minio-go/v7"
 )
@@ -23,10 +22,22 @@ func Parsing(ctx context.Context, task Job, deps *dependencies.AppDeps) {
 
 	var err error
 	defer func() {
-		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctxTimeout, cancel := context.WithTimeout(context.Background(), deps.Config.DB.OperationTimeout)
 		defer cancel()
 		failJob(ctxTimeout, task, logger, &err, deps)
 	}()
+
+	ctxTimeout, cancel := context.WithTimeout(context.Background(), deps.Config.DB.OperationTimeout)
+	err = deps.Queries.SetJobStage(ctxTimeout, queries.SetJobStageParams{
+		ID:    sqlc.ToUUID(task.UUID),
+		Stage: queries.JobStageParsing,
+	})
+	cancel()
+	if err != nil {
+		logger.Error("Failed to set job state", "error", err.Error())
+		err = fmt.Errorf("failed to set job state: %w", err)
+		return
+	}
 
 	tmpFile, err := os.CreateTemp("", "*.pdf")
 	if err != nil {
@@ -43,7 +54,7 @@ func Parsing(ctx context.Context, task Job, deps *dependencies.AppDeps) {
 		}
 	}()
 
-	ctxTimeout, cancel := context.WithTimeout(ctx, deps.Config.MinIO.OperationTimeout)
+	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.MinIO.OperationTimeout)
 	err = deps.MinIO.FGetObject(ctxTimeout, "pdf", task.ObjectKey, tmpFile.Name(), minio.GetObjectOptions{})
 	cancel()
 	if err != nil {

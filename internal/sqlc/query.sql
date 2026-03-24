@@ -52,10 +52,10 @@ RETURNING
     j.created_at,
     j.updated_at;
 
--- name: SetJobProcessing :exec
+-- name: SetJobStage :exec
 UPDATE jobs
-SET status = 'processing'
-WHERE id = $1;
+SET stage = $1
+WHERE id = $2;
 
 
 -- name: AdvanceJobStage :exec

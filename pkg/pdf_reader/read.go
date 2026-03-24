@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os/exec"
 	"syscall"
 )
@@ -12,9 +11,13 @@ import (
 func Read(ctx context.Context, path string) (ReadResponse, error) {
 	cmd := exec.CommandContext(
 		ctx,
-		"cgexec",
-		"-g", "memory,cpu:pdf-limit",
-		"./pdf-reader",
+		"systemd-run",
+		"--scope",
+		"--quiet",
+		"-p", "MemoryMax=100M",
+		"-p", "MemoryHigh=90M",
+		"-p", "CPUQuota=25%",
+		"/home/gosha/Documents/projects/essentia/build/pdf_reader",
 		path,
 	)
 
@@ -22,14 +25,7 @@ func Read(ctx context.Context, path string) (ReadResponse, error) {
 		Setpgid: true,
 	}
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return ReadResponse{}, err
-	}
-
-	if err := cmd.Start(); err != nil {
-		return ReadResponse{}, err
-	}
+	std, err := cmd.CombinedOutput()
 
 	done := make(chan struct {
 		out []byte
@@ -37,33 +33,38 @@ func Read(ctx context.Context, path string) (ReadResponse, error) {
 	}, 1)
 
 	go func() {
-		out, err := io.ReadAll(stdout)
 		done <- struct {
 			out []byte
 			err error
-		}{out, err}
+		}{std, err}
 	}()
 
 	select {
 	case res := <-done:
 		if res.err != nil {
-			return ReadResponse{}, res.err
+			return ReadResponse{}, fmt.Errorf("process failed: %w; output: %s", res.err, string(res.out))
+		}
+
+		if len(res.out) == 0 {
+			return ReadResponse{}, fmt.Errorf("empty output")
 		}
 
 		var resp ReadResponse
 		err := json.Unmarshal(res.out, &resp)
 		if err != nil {
-			return ReadResponse{}, fmt.Errorf("failed to unmarshal reader output: %w", err)
+			return ReadResponse{}, fmt.Errorf("failed to unmarshal reader output: %w; output: %s", err, string(res.out))
 		}
 
 		if len(resp.Error) != 0 {
-			return ReadResponse{}, fmt.Errorf("failed to unmarshal reader output: %s", resp.Error)
+			return ReadResponse{}, fmt.Errorf("reader error: %s", resp.Error)
 		}
 
 		return resp, nil
 
 	case <-ctx.Done():
-		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		if cmd.Process != nil {
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		}
 		return ReadResponse{}, fmt.Errorf("timeout killed")
 	}
 }
