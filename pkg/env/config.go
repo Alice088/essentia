@@ -37,10 +37,15 @@ type MinIO struct {
 type Workers struct {
 	WorkerPoolMax int `env:"WORKERS_WORKER_POOL_MAX,required"`
 	Parsing       WorkersParsing
+	WriteTasks    WorkersWriteTasks
 }
 
 type WorkersParsing struct {
 	ContextTimeout       time.Duration `env:"WORKERS_PARSING_CONTEXT_TIMEOUT,required"`
-	Tick                 time.Duration `env:"WORKERS_PARSING_TICK,required"`
 	ReaderContextTimeout time.Duration `env:"WORKERS_PARSING_READER_CONTEXT_TIMEOUT,required"`
+}
+
+type WorkersWriteTasks struct {
+	ContextTimeout time.Duration `env:"WORKERS_WRITE_TASKS_CONTEXT_TIMEOUT,required"`
+	ErrorSleep     time.Duration `env:"WORKERS_WRITE_TASKS_ERROR_SLEEP,required"`
 }

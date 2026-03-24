@@ -17,7 +17,7 @@ import (
 
 // TODO
 // - Добавить проверку что если это не первая попытка попытаться взять text из minio (или проверять что есть text_key)
-func Parsing(ctx context.Context, task Task, deps *dependencies.AppDeps) {
+func Parsing(ctx context.Context, task Job, deps *dependencies.AppDeps) {
 	logger := deps.Logger.With("uuid=", task.UUID.String(), "stage", "parsing")
 	textObjectName := fmt.Sprintf("%s-text.txt", task.UUID.String())
 
@@ -104,7 +104,7 @@ func Parsing(ctx context.Context, task Task, deps *dependencies.AppDeps) {
 	}
 }
 
-func failJob(ctx context.Context, task Task, logger *slog.Logger, err *error, deps *dependencies.AppDeps) {
+func failJob(ctx context.Context, task Job, logger *slog.Logger, err *error, deps *dependencies.AppDeps) {
 	if err != nil && *err != nil {
 		dbErr := deps.Queries.FailJob(ctx, queries.FailJobParams{
 			ID:    sqlc.ToUUID(task.UUID),

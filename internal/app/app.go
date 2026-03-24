@@ -95,15 +95,21 @@ func Run(cfg *env.Config) {
 	wgConsumer := &sync.WaitGroup{}
 	wgProducer := &sync.WaitGroup{}
 
-	tasks := make(chan workers.Task)
-	workers.UpConsumerWorkerPool(deps, wgConsumer, workers.WorkerPoolConfig{
+	tasks := make(chan workers.Job, 4)
+	workers.UpConsumerWorkerPool(deps, wgConsumer, workers.ConsumerWorkerPoolConfig{
 		Timeout:      cfg.Workers.Parsing.ContextTimeout,
 		WorkersCount: 2,
 		Fn:           workers.Parsing,
 		In:           tasks,
 	})
 
-	close(tasks)
+	workers.UpWriteNewestTasksWorkerPool(deps, wgProducer, workers.WriteNewestTasksWorkerPoolConfig{
+		Timeout:      cfg.Workers.Parsing.ContextTimeout,
+		WorkersCount: 2,
+		Fn:           workers.WriteNewestTasks,
+		Out:          tasks,
+		GlobalCtx:    ctx,
+	})
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.HTTP.Port,
