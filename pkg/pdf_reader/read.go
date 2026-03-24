@@ -12,6 +12,7 @@ func Read(ctx context.Context, path string) (ReadResponse, error) {
 	cmd := exec.CommandContext(
 		ctx,
 		"systemd-run",
+		"--user",
 		"--scope",
 		"--quiet",
 		"-p", "MemoryMax=100M",
