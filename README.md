@@ -1,3 +1,9 @@
+
+<div align="center">
+<img src="./static/gophers_run.png" height="550px" >
+</div>
+
+---
 # Essentia — AI PDF Summarization Service
 
 Essentia is a backend service that accepts a PDF file, extracts text, and prepares data for AI summarization.
