@@ -245,21 +245,17 @@ docker compose up -d prometheus
 - **PostgreSQL** – open‑source relational database with extensibility and SQL compliance
 - **sqlc** – type‑safe Go code generation from SQL
 - **MinIO** – open‑source, high‑performance S3‑compatible object storage
-- **MinIO Go client** – SDK for S3‑compatible object storage operations
-
 ### Configuration & Environment
 - **godotenv** – loads variables from `.env` files into the environment
 - **caarlos0/env** – zero‑dependencies environment‑variable parsing into structs
 
 ### Observability
 - **Prometheus** – open‑source monitoring and alerting toolkit
-- **Prometheus Go client** – instrumentation library for Go applications
 
 ### Testing & Development
 - **vektra/mockery** – mock code autogenerator for Go
-- **github.com/pdfcpu/pdfcpu** – PDF processing library (used in tests)
 
 ### AI & Automation
-- **Codex** – routine coding, code review, and commit‑message generation
+- **Codex** / **DeepSeek‑chat** – routine coding, code review, and commit‑message generation
 - **DeepSeek‑chat** – penetration‑testing assistance and code analysis
 - **PentAGI** – fully autonomous AI agents for complex penetration‑testing tasks (https://github.com/vxcontrol/pentagi)
