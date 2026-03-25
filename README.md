@@ -1,6 +1,6 @@
 
 <div align="center">
-<img src="./static/gophers_run.png" height="550px" >
+<img src="./static/gophers_run.png" >
 </div>
 
 ---
