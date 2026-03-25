@@ -2,76 +2,31 @@ package workers
 
 import (
 	"Alice088/essentia/internal/app/dependencies"
-	queries "Alice088/essentia/internal/sqlc/postgresql"
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 )
 
-func WriteNewestJobs(ctx context.Context, deps *dependencies.AppDeps) (job Job, err error) {
-	ctxTimeout, cancel := context.WithTimeout(ctx, deps.Config.DB.OperationTimeout)
-	defer cancel()
-	tx, err := deps.DB.Begin(ctxTimeout)
-	if err != nil {
-		err = fmt.Errorf("failed to begin tx: %w", err)
-		return
-	}
-	defer func() {
-		if err == nil {
-			ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.DB.OperationTimeout)
-			defer cancel()
-			if err = tx.Commit(ctxTimeout); err != nil {
-				err = fmt.Errorf("failed to commit: %w", err)
-			} else {
-				return
-			}
-		}
-
-		tx.Rollback(ctx)
-	}()
-
-	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.DB.OperationTimeout)
-	defer cancel()
-	j, err := deps.Queries.WithTx(tx).ClaimNextJobForStage(ctxTimeout, queries.ClaimNextJobForStageParams{
-		Stage: queries.JobStageUploaded,
-		Column2: []queries.ErrorType{
-			queries.ErrorTypeDb,
-			queries.ErrorTypeStorageUpload,
-			queries.ErrorTypeStorageDownload,
-			queries.ErrorTypeUnknown,
-		},
-	})
-	if err != nil {
-		err = fmt.Errorf("failed to claim next job: %w", err)
-		return
-	}
-
-	return Job{
-		UUID:      j.ID.Bytes,
-		ObjectKey: j.ObjectKey,
-	}, nil
-}
-
-type WriteNewestTasksWorkerPoolConfig struct {
+type UpStreamWorkerPoolConfig struct {
 	WorkersCount int
 	Timeout      time.Duration
 	Jobs         chan Job
 	GlobalCtx    context.Context
-	Fn           func(ctx context.Context, deps *dependencies.AppDeps) (Job, error)
+	Worker       func(ctx context.Context, deps *dependencies.AppDeps) (Job, error)
+	WorkerName   string
 }
 
-func UpWriteNewestTasksWorkerPool(deps *dependencies.AppDeps, wg *sync.WaitGroup, config WriteNewestTasksWorkerPoolConfig) {
+func UpStreamWorkerPool(deps *dependencies.AppDeps, wg *sync.WaitGroup, config UpStreamWorkerPoolConfig) {
 	go func() {
 		wg.Add(config.WorkersCount)
 		for i := range config.WorkersCount {
-			deps.Logger.Debug("Starting up write_newest_jobs worker", "worker", i)
+			deps.Logger.Debug("Starting up worker", "name", config.WorkerName, "worker", i)
 
 			go func() {
-				defer deps.Logger.Debug("Write_newest_jobs worker stop", "worker", i)
+				defer deps.Logger.Debug("Worker stop", "name", config.WorkerName, "worker", i)
 				defer wg.Done()
 
 				ctx := context.Background()
@@ -81,15 +36,15 @@ func UpWriteNewestTasksWorkerPool(deps *dependencies.AppDeps, wg *sync.WaitGroup
 					case <-config.GlobalCtx.Done():
 						return
 					default:
-						ctxTimeout, cancel := context.WithTimeout(ctx, deps.Config.Workers.WriteTasks.ContextTimeout)
-						job, err := config.Fn(ctxTimeout, deps)
+						ctxTimeout, cancel := context.WithTimeout(ctx, config.Timeout)
+						job, err := config.Worker(ctxTimeout, deps)
 						cancel()
 						if err != nil {
 							if !errors.Is(err, pgx.ErrNoRows) {
-								deps.Logger.Error("Failed make produce", "work", "WriteNewestJobs", "error", err)
+								deps.Logger.Error("Failed run function", "name", config.WorkerName, "error", err)
 							}
 
-							time.Sleep(deps.Config.Workers.WriteTasks.ErrorSleep)
+							time.Sleep(deps.Config.Workers.StreamJobs.ErrorSleep)
 							continue
 						}
 
@@ -97,7 +52,7 @@ func UpWriteNewestTasksWorkerPool(deps *dependencies.AppDeps, wg *sync.WaitGroup
 						case <-config.GlobalCtx.Done():
 							return
 						case config.Jobs <- job:
-							deps.Logger.Debug("Write_newest_jobs write job", "job_uuid", job.UUID.String(), "worker", i)
+							deps.Logger.Debug("Wrote stream", "name", config.WorkerName, "job_uuid", job.UUID.String(), "worker", i)
 							continue
 						}
 					}
