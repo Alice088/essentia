@@ -26,6 +26,7 @@ CREATE TYPE parsing_error_type AS ENUM (
     'encrypted',
     'timeout',
     'extract',
+    'empty',
     'storage_download',
     'storage_upload',
     'db',

@@ -93,6 +93,7 @@ func codeFromResponse(code string) errs.ParsingErrorCode {
 		errs.ParsingErrEncrypted,
 		errs.ParsingErrTimeout,
 		errs.ParsingErrExtract,
+		errs.ParsingErrEmpty,
 		errs.ParsingErrStorageDownload,
 		errs.ParsingErrStorageUpload,
 		errs.ParsingErrDB,

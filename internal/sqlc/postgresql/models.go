@@ -70,6 +70,7 @@ const (
 	ParsingErrorTypeEncrypted       ParsingErrorType = "encrypted"
 	ParsingErrorTypeTimeout         ParsingErrorType = "timeout"
 	ParsingErrorTypeExtract         ParsingErrorType = "extract"
+	ParsingErrorTypeEmpty           ParsingErrorType = "empty"
 	ParsingErrorTypeStorageDownload ParsingErrorType = "storage_download"
 	ParsingErrorTypeStorageUpload   ParsingErrorType = "storage_upload"
 	ParsingErrorTypeDb              ParsingErrorType = "db"

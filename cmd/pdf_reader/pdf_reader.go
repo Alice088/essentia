@@ -6,6 +6,7 @@ import (
 	"Alice088/essentia/pkg/size"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -61,6 +62,11 @@ func main() {
 	_, err = io.CopyN(&buf, text, size.MB5)
 	if err != nil && err != io.EOF {
 		writeErr(errs.ParsingErrExtract, fmt.Errorf("failed to read buffer: %w", err))
+		return
+	}
+
+	if buf.Len() == 0 {
+		writeErr(errs.ParsingErrEmpty, errors.New("pdf is empty"))
 		return
 	}
 

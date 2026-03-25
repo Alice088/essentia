@@ -8,6 +8,7 @@ const (
 	ParsingErrEncrypted       ParsingErrorCode = "encrypted"
 	ParsingErrTimeout         ParsingErrorCode = "timeout"
 	ParsingErrExtract         ParsingErrorCode = "extract"
+	ParsingErrEmpty           ParsingErrorCode = "empty"
 	ParsingErrStorageDownload ParsingErrorCode = "storage_download"
 	ParsingErrStorageUpload   ParsingErrorCode = "storage_upload"
 	ParsingErrDB              ParsingErrorCode = "db"
