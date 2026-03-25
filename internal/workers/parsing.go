@@ -4,9 +4,11 @@ import (
 	"Alice088/essentia/internal/app/dependencies"
 	"Alice088/essentia/internal/sqlc"
 	queries "Alice088/essentia/internal/sqlc/postgresql"
+	errx "Alice088/essentia/pkg/errors"
 	"Alice088/essentia/pkg/pdf_reader"
 	"Alice088/essentia/pkg/prometheus/metrics"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -27,9 +29,11 @@ func Parsing(ctx context.Context, job Job, deps *dependencies.AppDeps) {
 	var pdfSizeBytes int64
 	hasPDFSize := false
 	defer func() {
+		parsingErr := toParsingError(err)
 		status := metrics.Success
 		if err != nil {
 			status = metrics.Failed
+			metrics.ParsingErrorsTotal.WithLabelValues(string(parsingErr.Code)).Inc()
 		}
 
 		metrics.ParsingDurationSeconds.WithLabelValues(status).Observe(time.Since(start).Seconds())
@@ -39,7 +43,7 @@ func Parsing(ctx context.Context, job Job, deps *dependencies.AppDeps) {
 
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), deps.Config.DB.OperationTimeout)
 		defer cancel()
-		isFailed(ctxTimeout, job, logger, &err, deps)
+		isFailed(ctxTimeout, job, logger, &err, parsingErr, deps)
 	}()
 
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), deps.Config.DB.OperationTimeout)
@@ -50,14 +54,14 @@ func Parsing(ctx context.Context, job Job, deps *dependencies.AppDeps) {
 	cancel()
 	if err != nil {
 		logger.Error("Failed to set job state", "error", err.Error())
-		err = fmt.Errorf("failed to set job state: %w", err)
+		err = errx.NewParsingError(errx.ParsingErrDB, fmt.Errorf("failed to set job state: %w", err))
 		return
 	}
 
 	tmpFile, err := os.CreateTemp("", "*.pdf")
 	if err != nil {
 		logger.Error("Failed to create tmp file", "error", err.Error())
-		err = fmt.Errorf("failed to create tmp file: %w", err)
+		err = errx.NewParsingError(errx.ParsingErrOpen, fmt.Errorf("failed to create tmp file: %w", err))
 		return
 	}
 	defer func() {
@@ -74,14 +78,14 @@ func Parsing(ctx context.Context, job Job, deps *dependencies.AppDeps) {
 	cancel()
 	if err != nil {
 		logger.Error("Failed to get file from minio", "error", err.Error())
-		err = fmt.Errorf("failed to get file from minio: %w", err)
+		err = errx.NewParsingError(errx.ParsingErrStorageDownload, fmt.Errorf("failed to get file from minio: %w", err))
 		return
 	}
 
 	tmpFileInfo, tmpStatErr := tmpFile.Stat()
 	if tmpStatErr != nil {
 		logger.Error("Failed to stat tmp file", "tmp_file", tmpFile.Name(), "error", tmpStatErr.Error())
-		err = fmt.Errorf("failed to stat tmp file: %w", tmpStatErr)
+		err = errx.NewParsingError(errx.ParsingErrOpen, fmt.Errorf("failed to stat tmp file: %w", tmpStatErr))
 		return
 	}
 
@@ -111,7 +115,7 @@ func Parsing(ctx context.Context, job Job, deps *dependencies.AppDeps) {
 	cancel()
 	if err != nil {
 		logger.Error("Failed to put content to minio", "error", err.Error())
-		err = fmt.Errorf("failed to put content to minio: %w", err)
+		err = errx.NewParsingError(errx.ParsingErrStorageUpload, fmt.Errorf("failed to put content to minio: %w", err))
 		return
 	}
 
@@ -123,7 +127,7 @@ func Parsing(ctx context.Context, job Job, deps *dependencies.AppDeps) {
 	cancel()
 	if err != nil {
 		logger.Error("Failed to set text key", "error", err.Error())
-		err = fmt.Errorf("failed to set text key: %w", err)
+		err = errx.NewParsingError(errx.ParsingErrDB, fmt.Errorf("failed to set text key: %w", err))
 		return
 	}
 
@@ -135,18 +139,22 @@ func Parsing(ctx context.Context, job Job, deps *dependencies.AppDeps) {
 	cancel()
 	if err != nil {
 		logger.Error("Failed to advance job", "error", err.Error())
-		err = fmt.Errorf("failed to advance job: %w", err)
+		err = errx.NewParsingError(errx.ParsingErrDB, fmt.Errorf("failed to advance job: %w", err))
 		return
 	}
 }
 
-func isFailed(ctx context.Context, task Job, logger *slog.Logger, err *error, deps *dependencies.AppDeps) {
+func isFailed(ctx context.Context, task Job, logger *slog.Logger, err *error, parsingErr *errx.ParsingError, deps *dependencies.AppDeps) {
 	if err != nil && *err != nil {
 		metrics.ParsingTotal.WithLabelValues(metrics.Failed).Inc()
 
 		dbErr := deps.Queries.FailJob(ctx, queries.FailJobParams{
 			ID:    sqlc.ToUUID(task.UUID),
 			Error: sqlc.ToTEXT((*err).Error()),
+			ErrorType: queries.NullParsingErrorType{
+				ParsingErrorType: queries.ParsingErrorType(parsingErr.Code),
+				Valid:            true,
+			},
 		})
 		if dbErr != nil {
 			logger.Error("Failed to fail job", "error", dbErr.Error())
@@ -154,4 +162,20 @@ func isFailed(ctx context.Context, task Job, logger *slog.Logger, err *error, de
 	} else {
 		metrics.ParsingTotal.WithLabelValues(metrics.Success).Inc()
 	}
+}
+
+func toParsingError(err error) *errx.ParsingError {
+	if err == nil {
+		return errx.NewParsingError(errx.ParsingErrUnknown, nil)
+	}
+
+	if parsingErr, ok := errors.AsType[*errx.ParsingError](err); ok {
+		if parsingErr.Code == "" {
+			parsingErr.Code = errx.ParsingErrUnknown
+		}
+
+		return parsingErr
+	}
+
+	return errx.NewParsingError(errx.ParsingErrUnknown, err)
 }

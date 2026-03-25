@@ -62,6 +62,55 @@ func (ns NullJobStage) Value() (driver.Value, error) {
 	return string(ns.JobStage), nil
 }
 
+type ParsingErrorType string
+
+const (
+	ParsingErrorTypeOpen            ParsingErrorType = "open"
+	ParsingErrorTypeCorrupted       ParsingErrorType = "corrupted"
+	ParsingErrorTypeEncrypted       ParsingErrorType = "encrypted"
+	ParsingErrorTypeTimeout         ParsingErrorType = "timeout"
+	ParsingErrorTypeExtract         ParsingErrorType = "extract"
+	ParsingErrorTypeStorageDownload ParsingErrorType = "storage_download"
+	ParsingErrorTypeStorageUpload   ParsingErrorType = "storage_upload"
+	ParsingErrorTypeDb              ParsingErrorType = "db"
+	ParsingErrorTypeUnknown         ParsingErrorType = "unknown"
+)
+
+func (e *ParsingErrorType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ParsingErrorType(s)
+	case string:
+		*e = ParsingErrorType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ParsingErrorType: %T", src)
+	}
+	return nil
+}
+
+type NullParsingErrorType struct {
+	ParsingErrorType ParsingErrorType
+	Valid            bool // Valid is true if ParsingErrorType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullParsingErrorType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ParsingErrorType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ParsingErrorType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullParsingErrorType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ParsingErrorType), nil
+}
+
 type WorkStatus string
 
 const (
@@ -129,6 +178,7 @@ type Job struct {
 	CleanedTextKey pgtype.Text
 	SummaryKey     pgtype.Text
 	Error          pgtype.Text
+	ErrorType      NullParsingErrorType
 	CreatedAt      pgtype.Timestamptz
 	UpdatedAt      pgtype.Timestamptz
 }

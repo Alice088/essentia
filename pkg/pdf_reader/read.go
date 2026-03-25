@@ -1,11 +1,13 @@
 package pdf_reader
 
 import (
+	errs "Alice088/essentia/pkg/errors"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 )
 
@@ -48,22 +50,30 @@ func Read(ctx context.Context, path string) (ReadResponse, error) {
 
 	select {
 	case res := <-done:
+		var resp ReadResponse
+		if len(res.out) > 0 {
+			err := json.Unmarshal(res.out, &resp)
+			if err != nil {
+				return ReadResponse{}, errs.NewParsingError(
+					errs.ParsingErrUnknown,
+					fmt.Errorf("failed to unmarshal reader output: %w; output: %s", err, string(res.out)),
+				)
+			}
+
+			if len(resp.Error) != 0 {
+				return ReadResponse{}, errs.NewParsingError(codeFromResponse(resp.ErrorCode), fmt.Errorf("reader error: %s", resp.Error))
+			}
+		}
+
 		if res.err != nil {
-			return ReadResponse{}, fmt.Errorf("process failed: %w; output: %s", res.err, string(res.out))
+			return ReadResponse{}, errs.NewParsingError(
+				errs.ParsingErrUnknown,
+				fmt.Errorf("process failed: %w; output: %s", res.err, string(res.out)),
+			)
 		}
 
 		if len(res.out) == 0 {
-			return ReadResponse{}, fmt.Errorf("empty output")
-		}
-
-		var resp ReadResponse
-		err := json.Unmarshal(res.out, &resp)
-		if err != nil {
-			return ReadResponse{}, fmt.Errorf("failed to unmarshal reader output: %w; output: %s", err, string(res.out))
-		}
-
-		if len(resp.Error) != 0 {
-			return ReadResponse{}, fmt.Errorf("reader error: %s", resp.Error)
+			return ReadResponse{}, errs.NewParsingError(errs.ParsingErrUnknown, fmt.Errorf("empty output"))
 		}
 
 		return resp, nil
@@ -72,6 +82,23 @@ func Read(ctx context.Context, path string) (ReadResponse, error) {
 		if cmd.Process != nil {
 			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 		}
-		return ReadResponse{}, fmt.Errorf("timeout killed")
+		return ReadResponse{}, errs.NewParsingError(errs.ParsingErrTimeout, fmt.Errorf("timeout killed"))
+	}
+}
+
+func codeFromResponse(code string) errs.ParsingErrorCode {
+	switch errs.ParsingErrorCode(strings.ToLower(code)) {
+	case errs.ParsingErrOpen,
+		errs.ParsingErrCorrupted,
+		errs.ParsingErrEncrypted,
+		errs.ParsingErrTimeout,
+		errs.ParsingErrExtract,
+		errs.ParsingErrStorageDownload,
+		errs.ParsingErrStorageUpload,
+		errs.ParsingErrDB,
+		errs.ParsingErrUnknown:
+		return errs.ParsingErrorCode(strings.ToLower(code))
+	default:
+		return errs.ParsingErrUnknown
 	}
 }

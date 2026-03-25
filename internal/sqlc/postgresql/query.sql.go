@@ -15,7 +15,8 @@ const advanceJobStage = `-- name: AdvanceJobStage :exec
 UPDATE jobs
 SET stage  = $2,
     status = 'pending',
-    error  = NULL
+    error  = NULL,
+    error_type = NULL
 WHERE id = $1
 `
 
@@ -54,6 +55,7 @@ RETURNING
     j.cleaned_text_key,
     j.summary_key,
     j.error,
+    j.error_type,
     j.created_at,
     j.updated_at
 `
@@ -71,6 +73,7 @@ func (q *Queries) ClaimNextJobForStage(ctx context.Context, stage JobStage) (Job
 		&i.CleanedTextKey,
 		&i.SummaryKey,
 		&i.Error,
+		&i.ErrorType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -99,7 +102,8 @@ const completeJob = `-- name: CompleteJob :exec
 UPDATE jobs
 SET stage  = 'completed',
     status = 'completed',
-    error  = NULL
+    error  = NULL,
+    error_type = NULL
 WHERE id = $1
 `
 
@@ -187,7 +191,7 @@ func (q *Queries) CreateChunkTasksBatch(ctx context.Context, arg CreateChunkTask
 
 const createJob = `-- name: CreateJob :one
 INSERT INTO jobs (id, object_key)
-VALUES ($1, $2) RETURNING id, stage, status, object_key, attempts, text_key, cleaned_text_key, summary_key, error, created_at, updated_at
+VALUES ($1, $2) RETURNING id, stage, status, object_key, attempts, text_key, cleaned_text_key, summary_key, error, error_type, created_at, updated_at
 `
 
 type CreateJobParams struct {
@@ -208,6 +212,7 @@ func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (Job, erro
 		&i.CleanedTextKey,
 		&i.SummaryKey,
 		&i.Error,
+		&i.ErrorType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -247,22 +252,24 @@ const failJob = `-- name: FailJob :exec
 UPDATE jobs
 SET status   = 'failed',
     error    = $2,
+    error_type = $3,
     attempts = attempts + 1
 WHERE id = $1
 `
 
 type FailJobParams struct {
-	ID    pgtype.UUID
-	Error pgtype.Text
+	ID        pgtype.UUID
+	Error     pgtype.Text
+	ErrorType NullParsingErrorType
 }
 
 func (q *Queries) FailJob(ctx context.Context, arg FailJobParams) error {
-	_, err := q.db.Exec(ctx, failJob, arg.ID, arg.Error)
+	_, err := q.db.Exec(ctx, failJob, arg.ID, arg.Error, arg.ErrorType)
 	return err
 }
 
 const getJob = `-- name: GetJob :one
-SELECT id, stage, status, object_key, attempts, text_key, cleaned_text_key, summary_key, error, created_at, updated_at
+SELECT id, stage, status, object_key, attempts, text_key, cleaned_text_key, summary_key, error, error_type, created_at, updated_at
 FROM jobs
 WHERE id = $1
 `
@@ -280,6 +287,7 @@ func (q *Queries) GetJob(ctx context.Context, id pgtype.UUID) (Job, error) {
 		&i.CleanedTextKey,
 		&i.SummaryKey,
 		&i.Error,
+		&i.ErrorType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -287,7 +295,7 @@ func (q *Queries) GetJob(ctx context.Context, id pgtype.UUID) (Job, error) {
 }
 
 const getJobByObjectKey = `-- name: GetJobByObjectKey :one
-SELECT id, stage, status, object_key, attempts, text_key, cleaned_text_key, summary_key, error, created_at, updated_at
+SELECT id, stage, status, object_key, attempts, text_key, cleaned_text_key, summary_key, error, error_type, created_at, updated_at
 FROM jobs
 WHERE object_key = $1
 `
@@ -305,6 +313,7 @@ func (q *Queries) GetJobByObjectKey(ctx context.Context, objectKey string) (Job,
 		&i.CleanedTextKey,
 		&i.SummaryKey,
 		&i.Error,
+		&i.ErrorType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -367,7 +376,7 @@ func (q *Queries) GetNextChunkTaskGlobal(ctx context.Context) (ChunkTask, error)
 }
 
 const listJobs = `-- name: ListJobs :many
-SELECT id, stage, status, object_key, attempts, text_key, cleaned_text_key, summary_key, error, created_at, updated_at
+SELECT id, stage, status, object_key, attempts, text_key, cleaned_text_key, summary_key, error, error_type, created_at, updated_at
 FROM jobs
 ORDER BY created_at DESC LIMIT $1
 OFFSET $2
@@ -397,6 +406,7 @@ func (q *Queries) ListJobs(ctx context.Context, arg ListJobsParams) ([]Job, erro
 			&i.CleanedTextKey,
 			&i.SummaryKey,
 			&i.Error,
+			&i.ErrorType,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -426,7 +436,8 @@ func (q *Queries) ResetFailedChunks(ctx context.Context, jobID pgtype.UUID) erro
 const resetFailedJob = `-- name: ResetFailedJob :exec
 UPDATE jobs
 SET status = 'pending',
-    error = NULL
+    error = NULL,
+    error_type = NULL
 WHERE id = $1
   AND status = 'failed'
 `

@@ -49,6 +49,7 @@ RETURNING
     j.cleaned_text_key,
     j.summary_key,
     j.error,
+    j.error_type,
     j.created_at,
     j.updated_at;
 
@@ -62,7 +63,8 @@ WHERE id = $2;
 UPDATE jobs
 SET stage  = $2,
     status = 'pending',
-    error  = NULL
+    error  = NULL,
+    error_type = NULL
 WHERE id = $1;
 
 
@@ -70,7 +72,8 @@ WHERE id = $1;
 UPDATE jobs
 SET stage  = 'completed',
     status = 'completed',
-    error  = NULL
+    error  = NULL,
+    error_type = NULL
 WHERE id = $1;
 
 
@@ -78,6 +81,7 @@ WHERE id = $1;
 UPDATE jobs
 SET status   = 'failed',
     error    = $2,
+    error_type = $3,
     attempts = attempts + 1
 WHERE id = $1;
 
@@ -168,6 +172,7 @@ WHERE job_id = $1
 -- name: ResetFailedJob :exec
 UPDATE jobs
 SET status = 'pending',
-    error = NULL
+    error = NULL,
+    error_type = NULL
 WHERE id = $1
   AND status = 'failed';

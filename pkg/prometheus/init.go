@@ -13,4 +13,5 @@ func UpMetrics() {
 	prometheus.MustRegister(metrics.ParsingTotal)
 	prometheus.MustRegister(metrics.ParsingDurationSeconds)
 	prometheus.MustRegister(metrics.ParsingPDFSizeBytes)
+	prometheus.MustRegister(metrics.ParsingErrorsTotal)
 }
