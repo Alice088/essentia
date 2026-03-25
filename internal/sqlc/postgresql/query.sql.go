@@ -35,7 +35,7 @@ WITH cte AS (
     SELECT id
     FROM jobs
     WHERE jobs.status IN ('pending', 'failed')
-      AND jobs.stage = $1
+      AND jobs.stage = ANY($1::text[]::job_stage[])
       AND jobs.attempts < 3
       AND (
           jobs.error_type IS NULL
@@ -56,7 +56,7 @@ RETURNING
 `
 
 type ClaimNextJobForStageParams struct {
-	Stage   JobStage
+	Column1 []string
 	Column2 []string
 }
 
@@ -66,7 +66,7 @@ type ClaimNextJobForStageRow struct {
 }
 
 func (q *Queries) ClaimNextJobForStage(ctx context.Context, arg ClaimNextJobForStageParams) (ClaimNextJobForStageRow, error) {
-	row := q.db.QueryRow(ctx, claimNextJobForStage, arg.Stage, arg.Column2)
+	row := q.db.QueryRow(ctx, claimNextJobForStage, arg.Column1, arg.Column2)
 	var i ClaimNextJobForStageRow
 	err := row.Scan(&i.ID, &i.ObjectKey)
 	return i, err

@@ -32,7 +32,10 @@ func StreamParsingJobs(ctx context.Context, deps *dependencies.AppDeps) (job Job
 	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.DB.OperationTimeout)
 	defer cancel()
 	j, err := deps.Queries.WithTx(tx).ClaimNextJobForStage(ctxTimeout, queries.ClaimNextJobForStageParams{
-		Stage: queries.JobStageUploaded,
+		Column1: []string{
+			string(queries.JobStageUploaded),
+			string(queries.JobStageParsing),
+		},
 		Column2: []string{
 			string(queries.ErrorTypeDb),
 			string(queries.ErrorTypeStorageUpload),

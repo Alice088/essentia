@@ -29,7 +29,7 @@ WITH cte AS (
     SELECT id
     FROM jobs
     WHERE jobs.status IN ('pending', 'failed')
-      AND jobs.stage = $1
+      AND jobs.stage = ANY($1::text[]::job_stage[])
       AND jobs.attempts < 3
       AND (
           jobs.error_type IS NULL
