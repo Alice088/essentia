@@ -36,7 +36,15 @@ func WriteNewestJobs(ctx context.Context, deps *dependencies.AppDeps) (job Job, 
 
 	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.DB.OperationTimeout)
 	defer cancel()
-	j, err := deps.Queries.WithTx(tx).ClaimNextJobForStage(ctxTimeout, queries.JobStageUploaded)
+	j, err := deps.Queries.WithTx(tx).ClaimNextJobForStage(ctxTimeout, queries.ClaimNextJobForStageParams{
+		Stage: queries.JobStageUploaded,
+		Column2: []queries.ErrorType{
+			queries.ErrorTypeDb,
+			queries.ErrorTypeStorageUpload,
+			queries.ErrorTypeStorageDownload,
+			queries.ErrorTypeUnknown,
+		},
+	})
 	if err != nil {
 		err = fmt.Errorf("failed to claim next job: %w", err)
 		return

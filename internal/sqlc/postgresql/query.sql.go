@@ -34,8 +34,13 @@ const claimNextJobForStage = `-- name: ClaimNextJobForStage :one
 WITH cte AS (
     SELECT id
     FROM jobs
-    WHERE jobs.status = 'pending'
+    WHERE jobs.status IN ('pending', 'failed')
       AND jobs.stage = $1
+      AND jobs.attempts < 3
+      AND (
+          jobs.error_type IS NULL
+          OR jobs.error_type = ANY($2::text[]::error_type[])
+      )
     ORDER BY created_at
     LIMIT 1
     FOR UPDATE SKIP LOCKED
@@ -47,36 +52,23 @@ FROM cte
 WHERE j.id = cte.id
 RETURNING
     j.id,
-    j.stage,
-    j.status,
-    j.object_key,
-    j.attempts,
-    j.text_key,
-    j.cleaned_text_key,
-    j.summary_key,
-    j.error,
-    j.error_type,
-    j.created_at,
-    j.updated_at
+    j.object_key
 `
 
-func (q *Queries) ClaimNextJobForStage(ctx context.Context, stage JobStage) (Job, error) {
-	row := q.db.QueryRow(ctx, claimNextJobForStage, stage)
-	var i Job
-	err := row.Scan(
-		&i.ID,
-		&i.Stage,
-		&i.Status,
-		&i.ObjectKey,
-		&i.Attempts,
-		&i.TextKey,
-		&i.CleanedTextKey,
-		&i.SummaryKey,
-		&i.Error,
-		&i.ErrorType,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
+type ClaimNextJobForStageParams struct {
+	Stage   JobStage
+	Column2 []string
+}
+
+type ClaimNextJobForStageRow struct {
+	ID        pgtype.UUID
+	ObjectKey string
+}
+
+func (q *Queries) ClaimNextJobForStage(ctx context.Context, arg ClaimNextJobForStageParams) (ClaimNextJobForStageRow, error) {
+	row := q.db.QueryRow(ctx, claimNextJobForStage, arg.Stage, arg.Column2)
+	var i ClaimNextJobForStageRow
+	err := row.Scan(&i.ID, &i.ObjectKey)
 	return i, err
 }
 
@@ -260,7 +252,7 @@ WHERE id = $1
 type FailJobParams struct {
 	ID        pgtype.UUID
 	Error     pgtype.Text
-	ErrorType NullParsingErrorType
+	ErrorType NullErrorType
 }
 
 func (q *Queries) FailJob(ctx context.Context, arg FailJobParams) error {

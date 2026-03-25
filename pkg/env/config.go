@@ -37,7 +37,7 @@ type MinIO struct {
 type Workers struct {
 	WorkerPoolMax int `env:"WORKERS_WORKER_POOL_MAX,required"`
 	Parsing       WorkersParsing
-	WriteTasks    WorkersWriteTasks
+	StreamJobs    WorkersWriteTasks
 }
 
 type WorkersParsing struct {

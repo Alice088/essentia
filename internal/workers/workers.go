@@ -15,28 +15,29 @@ type Job struct {
 }
 
 type ConsumerWorkerPoolConfig struct {
+	WorkerName   string
 	WorkersCount int
 	Timeout      time.Duration
-	In           chan Job
-	Fn           func(ctx context.Context, in Job, deps *dependencies.AppDeps)
+	Jobs         chan Job
+	Workers      func(ctx context.Context, in Job, deps *dependencies.AppDeps)
 }
 
 func UpConsumerWorkerPool(deps *dependencies.AppDeps, wg *sync.WaitGroup, config ConsumerWorkerPoolConfig) {
 	go func() {
 		wg.Add(config.WorkersCount)
 		for i := range config.WorkersCount {
-			deps.Logger.Debug("Starting up consumer worker", "worker", i)
+			deps.Logger.Debug("Starting up worker", "name", config.WorkerName, "worker", i)
 
 			go func() {
-				defer deps.Logger.Debug("Consumer worker stop", "worker", i)
+				defer deps.Logger.Debug("Worker stop", "name", config.WorkerName, "worker", i)
 				defer wg.Done()
 				ctx := context.Background()
-				for task := range config.In {
-					deps.Logger.Debug("Consumer process task", "task_uuid", task.UUID.String(), "worker", i)
+				for task := range config.Jobs {
+					deps.Logger.Debug("Process task", "name", config.WorkerName, "task_uuid", task.UUID.String(), "worker", i)
 					ctxTimeout, cancel := context.WithTimeout(ctx, config.Timeout)
-					config.Fn(ctxTimeout, task, deps)
+					config.Workers(ctxTimeout, task, deps)
 					cancel()
-					deps.Logger.Debug("Consumer finish process task", "task_uuid", task.UUID.String(), "worker", i)
+					deps.Logger.Debug("Finish process task", "name", config.WorkerName, "task_uuid", task.UUID.String(), "worker", i)
 				}
 			}()
 		}

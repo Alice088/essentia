@@ -11,6 +11,56 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ErrorType string
+
+const (
+	ErrorTypeOpen            ErrorType = "open"
+	ErrorTypeCorrupted       ErrorType = "corrupted"
+	ErrorTypeEncrypted       ErrorType = "encrypted"
+	ErrorTypeTimeout         ErrorType = "timeout"
+	ErrorTypeExtract         ErrorType = "extract"
+	ErrorTypeEmpty           ErrorType = "empty"
+	ErrorTypeStorageDownload ErrorType = "storage_download"
+	ErrorTypeStorageUpload   ErrorType = "storage_upload"
+	ErrorTypeDb              ErrorType = "db"
+	ErrorTypeUnknown         ErrorType = "unknown"
+)
+
+func (e *ErrorType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ErrorType(s)
+	case string:
+		*e = ErrorType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ErrorType: %T", src)
+	}
+	return nil
+}
+
+type NullErrorType struct {
+	ErrorType ErrorType
+	Valid     bool // Valid is true if ErrorType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullErrorType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ErrorType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ErrorType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullErrorType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ErrorType), nil
+}
+
 type JobStage string
 
 const (
@@ -60,56 +110,6 @@ func (ns NullJobStage) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.JobStage), nil
-}
-
-type ParsingErrorType string
-
-const (
-	ParsingErrorTypeOpen            ParsingErrorType = "open"
-	ParsingErrorTypeCorrupted       ParsingErrorType = "corrupted"
-	ParsingErrorTypeEncrypted       ParsingErrorType = "encrypted"
-	ParsingErrorTypeTimeout         ParsingErrorType = "timeout"
-	ParsingErrorTypeExtract         ParsingErrorType = "extract"
-	ParsingErrorTypeEmpty           ParsingErrorType = "empty"
-	ParsingErrorTypeStorageDownload ParsingErrorType = "storage_download"
-	ParsingErrorTypeStorageUpload   ParsingErrorType = "storage_upload"
-	ParsingErrorTypeDb              ParsingErrorType = "db"
-	ParsingErrorTypeUnknown         ParsingErrorType = "unknown"
-)
-
-func (e *ParsingErrorType) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = ParsingErrorType(s)
-	case string:
-		*e = ParsingErrorType(s)
-	default:
-		return fmt.Errorf("unsupported scan type for ParsingErrorType: %T", src)
-	}
-	return nil
-}
-
-type NullParsingErrorType struct {
-	ParsingErrorType ParsingErrorType
-	Valid            bool // Valid is true if ParsingErrorType is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullParsingErrorType) Scan(value interface{}) error {
-	if value == nil {
-		ns.ParsingErrorType, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.ParsingErrorType.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullParsingErrorType) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.ParsingErrorType), nil
 }
 
 type WorkStatus string
@@ -179,7 +179,7 @@ type Job struct {
 	CleanedTextKey pgtype.Text
 	SummaryKey     pgtype.Text
 	Error          pgtype.Text
-	ErrorType      NullParsingErrorType
+	ErrorType      NullErrorType
 	CreatedAt      pgtype.Timestamptz
 	UpdatedAt      pgtype.Timestamptz
 }

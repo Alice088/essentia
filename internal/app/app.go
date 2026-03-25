@@ -101,16 +101,18 @@ func Run(cfg *env.Config) {
 
 	tasks := make(chan workers.Job, 4)
 	workers.UpConsumerWorkerPool(deps, wgConsumer, workers.ConsumerWorkerPoolConfig{
+		WorkerName:   "ParsingWorker",
 		Timeout:      cfg.Workers.Parsing.ContextTimeout,
 		WorkersCount: 2,
-		Fn:           workers.Parsing,
-		In:           tasks,
+		Workers:      workers.Parsing,
+		Jobs:         tasks,
 	})
 
-	workers.UpWriteNewestTasksWorkerPool(deps, wgProducer, workers.WriteNewestTasksWorkerPoolConfig{
+	workers.UpStreamWorkerPool(deps, wgProducer, workers.UpStreamWorkerPoolConfig{
+		WorkerName:   "StreamParsingJobsWorker",
 		Timeout:      cfg.Workers.Parsing.ContextTimeout,
 		WorkersCount: 2,
-		Fn:           workers.WriteNewestJobs,
+		Worker:       workers.StreamParsingJobs,
 		Jobs:         tasks,
 		GlobalCtx:    ctx,
 	})
@@ -144,7 +146,7 @@ func Run(cfg *env.Config) {
 		os.Exit(1)
 	}
 
-	logger.Info("waiting for producer workers...")
+	logger.Info("waiting for stream workers...")
 	wgProducer.Wait()
 	close(tasks)
 

@@ -151,9 +151,9 @@ func isFailed(ctx context.Context, task Job, logger *slog.Logger, err *error, pa
 		dbErr := deps.Queries.FailJob(ctx, queries.FailJobParams{
 			ID:    sqlc.ToUUID(task.UUID),
 			Error: sqlc.ToTEXT((*err).Error()),
-			ErrorType: queries.NullParsingErrorType{
-				ParsingErrorType: queries.ParsingErrorType(parsingErr.Code),
-				Valid:            true,
+			ErrorType: queries.NullErrorType{
+				ErrorType: queries.ErrorType(parsingErr.Code),
+				Valid:     true,
 			},
 		})
 		if dbErr != nil {

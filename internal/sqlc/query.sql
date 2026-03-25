@@ -28,8 +28,13 @@ WHERE id = $1;
 WITH cte AS (
     SELECT id
     FROM jobs
-    WHERE jobs.status = 'pending'
+    WHERE jobs.status IN ('pending', 'failed')
       AND jobs.stage = $1
+      AND jobs.attempts < 3
+      AND (
+          jobs.error_type IS NULL
+          OR jobs.error_type = ANY($2::text[]::error_type[])
+      )
     ORDER BY created_at
     LIMIT 1
     FOR UPDATE SKIP LOCKED
@@ -41,17 +46,8 @@ FROM cte
 WHERE j.id = cte.id
 RETURNING
     j.id,
-    j.stage,
-    j.status,
-    j.object_key,
-    j.attempts,
-    j.text_key,
-    j.cleaned_text_key,
-    j.summary_key,
-    j.error,
-    j.error_type,
-    j.created_at,
-    j.updated_at;
+    j.object_key;
+
 
 -- name: SetJobStage :exec
 UPDATE jobs
