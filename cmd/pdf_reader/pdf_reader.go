@@ -18,7 +18,11 @@ import (
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
-			writeErr(errs.ParsingErrUnknown, fmt.Errorf("panic: %v", r))
+			errT := errs.ParsingErrUnknown
+			if err, ok := r.(error); ok {
+				errT = classifyOpenPDFError(err)
+			}
+			writeErr(errT, fmt.Errorf("panic: %v", r))
 		}
 	}()
 
