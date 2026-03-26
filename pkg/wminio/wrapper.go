@@ -2,6 +2,7 @@ package wminio
 
 import (
 	"Alice088/essentia/pkg/env"
+	"Alice088/essentia/pkg/pdf_parser"
 	"Alice088/essentia/pkg/s3"
 	"context"
 	"fmt"
@@ -83,9 +84,14 @@ func (w Wrapper) Put(ctx context.Context, file s3.File) error {
 	return nil
 }
 
-func (w Wrapper) Get(ctx context.Context, object s3.Object, tmp string) error {
-	//TODO implement me
-	panic("implement me")
+func (w Wrapper) FGet(ctx context.Context, object s3.Object, tmp pdf_parser.TMP) error {
+	timeout, cancel := context.WithTimeout(ctx, w.config.OperationTimeout)
+	defer cancel()
+	err := w.client.FGetObject(timeout, w.bucket, object.Key(), tmp.Path(), minio.GetObjectOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get file from minio: %w", err)
+	}
+	return nil
 }
 
 func New(cfg env.MinIO, bucket string) (s3.S3, error) {

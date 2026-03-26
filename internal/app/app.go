@@ -3,9 +3,11 @@ package app
 import (
 	"Alice088/essentia/internal/app/dependencies"
 	"Alice088/essentia/internal/controller/restapi"
+	"Alice088/essentia/internal/repo/job"
 	queries "Alice088/essentia/internal/sqlc/postgresql"
 	"Alice088/essentia/internal/workers"
 	"Alice088/essentia/pkg/env"
+	"Alice088/essentia/pkg/pdf_parser"
 	"Alice088/essentia/pkg/wminio"
 	"Alice088/essentia/pkg/xlogger"
 	"context"
@@ -57,9 +59,17 @@ func Run(cfg env.Config) {
 		Queries: queries.New(conn),
 		DB:      conn,
 	}
+	deps.JobRepo = job.NewRepo(deps)
 
 	r := chi.NewRouter()
 	restapi.NewRouter(r, deps)
+
+	parser := workers.Parser{
+		Repo:   deps.JobRepo,
+		Parser: pdf_parser.NewParser(cfg.Workers.Parsing),
+		Logger: logger,
+		S3:     s3,
+	}
 
 	wgConsumer := &sync.WaitGroup{}
 	wgProducer := &sync.WaitGroup{}
@@ -69,7 +79,7 @@ func Run(cfg env.Config) {
 		WorkerName:   "ParsingWorker",
 		Timeout:      cfg.Workers.Parsing.ContextTimeout,
 		WorkersCount: 2,
-		Workers:      workers.Parsing,
+		Workers:      parser.Parsing,
 		Jobs:         tasks,
 	})
 

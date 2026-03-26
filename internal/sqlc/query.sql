@@ -46,7 +46,8 @@ FROM cte
 WHERE j.id = cte.id
 RETURNING
     j.id,
-    j.object_key;
+    j.object_key,
+    j.attempts;
 
 
 -- name: SetJobStage :exec

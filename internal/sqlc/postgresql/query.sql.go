@@ -52,7 +52,8 @@ FROM cte
 WHERE j.id = cte.id
 RETURNING
     j.id,
-    j.object_key
+    j.object_key,
+    j.attempts
 `
 
 type ClaimNextJobForStageParams struct {
@@ -63,12 +64,13 @@ type ClaimNextJobForStageParams struct {
 type ClaimNextJobForStageRow struct {
 	ID        pgtype.UUID
 	ObjectKey string
+	Attempts  int32
 }
 
 func (q *Queries) ClaimNextJobForStage(ctx context.Context, arg ClaimNextJobForStageParams) (ClaimNextJobForStageRow, error) {
 	row := q.db.QueryRow(ctx, claimNextJobForStage, arg.Column1, arg.Column2)
 	var i ClaimNextJobForStageRow
-	err := row.Scan(&i.ID, &i.ObjectKey)
+	err := row.Scan(&i.ID, &i.ObjectKey, &i.Attempts)
 	return i, err
 }
 

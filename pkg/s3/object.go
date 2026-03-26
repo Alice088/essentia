@@ -11,10 +11,24 @@ type Object struct {
 	Ext  string
 }
 
+func MustToPDF(fromUuid string) Object {
+	return Object{
+		Ext:  "pdf",
+		Name: uuid.MustParse(fromUuid),
+	}
+}
+
 func NewPDF() Object {
 	return Object{
 		Ext:  "pdf",
 		Name: uuid.New(),
+	}
+}
+
+func ToTXT(object Object) Object {
+	return Object{
+		Ext:  "txt",
+		Name: object.Name,
 	}
 }
 

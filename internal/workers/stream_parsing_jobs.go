@@ -3,6 +3,7 @@ package workers
 import (
 	"Alice088/essentia/internal/app/dependencies"
 	queries "Alice088/essentia/internal/sqlc/postgresql"
+	"Alice088/essentia/pkg/s3"
 	"context"
 	"fmt"
 )
@@ -49,7 +50,7 @@ func StreamParsingJobs(ctx context.Context, deps dependencies.AppDeps) (job Job,
 	}
 
 	return Job{
-		UUID:      j.ID.Bytes,
-		ObjectKey: j.ObjectKey,
+		Object:  s3.MustToPDF(j.ID.String()),
+		Attempt: int(j.Attempts),
 	}, nil
 }

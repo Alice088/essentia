@@ -1,6 +1,7 @@
 package dependencies
 
 import (
+	"Alice088/essentia/internal/repo"
 	queries "Alice088/essentia/internal/sqlc/postgresql"
 	"Alice088/essentia/pkg/env"
 	"Alice088/essentia/pkg/s3"
@@ -15,4 +16,5 @@ type AppDeps struct {
 	S3      s3.S3
 	Config  env.Config
 	DB      *pgxpool.Pool
+	JobRepo repo.Job
 }

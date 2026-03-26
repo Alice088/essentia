@@ -48,7 +48,7 @@ func TestBasicValid_FileTooLargeContentLength(t *testing.T) {
 	body := []byte("%PDF-hello world")
 
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
-	req.ContentLength = size.MB5 + 1
+	req.ContentLength = real_size.MB5 + 1
 
 	res := PDF(PDFInput{
 		Size:   req.ContentLength,
@@ -72,12 +72,12 @@ func TestBasicValid_FileTooLargeContentLength(t *testing.T) {
 // TestBasicValid_FileTooLargeUnknownSize verifies that oversized streamed
 // requests are rejected when the middleware-backed MaxBytesReader trips.
 func TestBasicValid_FileTooLargeUnknownSize(t *testing.T) {
-	body := append([]byte("%PDF-"), bytes.Repeat([]byte("a"), size.MB5)...)
+	body := append([]byte("%PDF-"), bytes.Repeat([]byte("a"), real_size.MB5)...)
 
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.ContentLength = -1
 	rr := httptest.NewRecorder()
-	req.Body = http.MaxBytesReader(rr, req.Body, size.MB5)
+	req.Body = http.MaxBytesReader(rr, req.Body, real_size.MB5)
 
 	res := PDF(PDFInput{
 		Size:   req.ContentLength,

@@ -15,14 +15,14 @@ import (
 type basic struct {
 	S3     s3.S3
 	Logger *slog.Logger
-	Repo   repo.PDF
+	Repo   repo.Job
 }
 
-func New(deps dependencies.AppDeps, repo repo.PDF) service.PDF {
+func New(deps dependencies.AppDeps) service.PDF {
 	return &basic{
 		S3:     deps.S3,
 		Logger: deps.Logger,
-		Repo:   repo,
+		Repo:   deps.JobRepo,
 	}
 }
 

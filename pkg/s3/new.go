@@ -1,6 +1,7 @@
 package s3
 
 import (
+	"Alice088/essentia/pkg/pdf_parser"
 	"context"
 	"io"
 )
@@ -24,6 +25,6 @@ type File struct {
 
 type FilesManager interface {
 	Put(ctx context.Context, file File) error
-	Get(ctx context.Context, object Object, tmp string) error
+	FGet(ctx context.Context, object Object, tmp pdf_parser.TMP) error
 	Delete(ctx context.Context, object Object) error
 }

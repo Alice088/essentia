@@ -23,6 +23,7 @@ func UpStreamWorkerPool(deps dependencies.AppDeps, wg *sync.WaitGroup, config Up
 	go func() {
 		wg.Add(config.WorkersCount)
 		for i := range config.WorkersCount {
+			i++
 			deps.Logger.Debug("Starting up worker", "name", config.WorkerName, "worker", i)
 
 			go func() {
@@ -52,7 +53,7 @@ func UpStreamWorkerPool(deps dependencies.AppDeps, wg *sync.WaitGroup, config Up
 						case <-config.GlobalCtx.Done():
 							return
 						case config.Jobs <- job:
-							deps.Logger.Debug("Wrote stream", "name", config.WorkerName, "job_uuid", job.UUID.String(), "worker", i)
+							deps.Logger.Debug("Wrote stream", "name", config.WorkerName, "job_uuid", job.Object.Name.String(), "worker", i)
 							continue
 						}
 					}
