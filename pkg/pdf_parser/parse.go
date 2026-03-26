@@ -4,6 +4,7 @@ import (
 	errs "Alice088/essentia/pkg/errors"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -12,12 +13,20 @@ import (
 )
 
 func (r *Parser) Parse(ctx context.Context) (ReadResponse, error) {
-	timeout, cancel := context.WithTimeout(ctx, r.Config.ReaderContextTimeout)
-	defer cancel()
-
 	if !filepath.IsAbs(r.TMP.Path()) {
 		return ReadResponse{}, fmt.Errorf("path must be absolute")
 	}
+
+	binPath, err := filepath.Abs(filepath.Join(".", "build", "pdf_parser"))
+	if err != nil {
+		return ReadResponse{}, errs.NewPipeError(
+			errs.ErrUnknown, //todo поотом сделать другой тип
+			fmt.Errorf("failed to absolute path: %w", err),
+		)
+	}
+
+	timeout, cancel := context.WithTimeout(ctx, r.Config.ReaderContextTimeout)
+	defer cancel()
 
 	cmd := exec.CommandContext(
 		timeout,
@@ -29,7 +38,7 @@ func (r *Parser) Parse(ctx context.Context) (ReadResponse, error) {
 		"-p", "MemoryHigh=90M",
 		"-p", "CPUQuota=25%",
 		"-p", "TasksMax=100",
-		filepath.Join(".", "build", "pdf_reader"),
+		binPath,
 		r.TMP.Path(),
 	)
 
@@ -74,8 +83,14 @@ func (r *Parser) Parse(ctx context.Context) (ReadResponse, error) {
 		}
 
 		if res.err != nil {
+			errT := errs.ErrUnknown
+
+			if errors.Is(res.err, context.DeadlineExceeded) {
+				errT = errs.ErrTimeout
+			}
+
 			return ReadResponse{}, errs.NewPipeError(
-				errs.ErrUnknown,
+				errT,
 				fmt.Errorf("process failed: %w", res.err),
 			)
 		}

@@ -9,7 +9,6 @@ import (
 	"Alice088/essentia/pkg/s3"
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -50,7 +49,7 @@ func (p Parser) Parsing(ctx context.Context, job Job) {
 
 		if err != nil {
 			metrics.ParsingTotal.WithLabelValues(metrics.Failed).Inc()
-			p.failed(ctx, repo.Fail{
+			p.failed(context.Background(), repo.Fail{
 				JobId:     job.Object.Name,
 				Error:     err,
 				ErrorType: queries.ErrorType(pipeErr.Code),
@@ -100,7 +99,6 @@ func (p Parser) Parsing(ctx context.Context, job Job) {
 	parse, err := p.PDFParser.Parse(ctx)
 	if err != nil {
 		logger.Error("Failed to read pdf", "error", errors.Unwrap(err))
-		err = fmt.Errorf("failed to read pdf: %w", err)
 		return
 	}
 
@@ -115,7 +113,7 @@ func (p Parser) Parsing(ctx context.Context, job Job) {
 		return
 	}
 
-	err = p.Repo.SetJobText(ctx, job.Object.Name, parse.Text)
+	err = p.Repo.SetJobText(ctx, job.Object.Name, txt)
 	if err != nil {
 		logger.Error(err.Error(), "error", errors.Unwrap(err))
 		err = errx.NewPipeError(errx.ErrDB, err)

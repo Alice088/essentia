@@ -46,12 +46,12 @@ func ToPipeError(err error) PipeError {
 		return NewPipeError(ErrUnknown, nil)
 	}
 
-	if pipeError, ok := errors.AsType[*PipeError](err); ok {
+	if pipeError, ok := errors.AsType[PipeError](err); ok {
 		if pipeError.Code == "" {
 			pipeError.Code = ErrUnknown
 		}
 
-		return *pipeError
+		return pipeError
 	}
 
 	return NewPipeError(ErrUnknown, err)

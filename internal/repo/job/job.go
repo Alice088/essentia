@@ -38,12 +38,12 @@ func (b basic) AdvanceJobStage(ctx context.Context, id uuid.UUID, stage string) 
 	return nil
 }
 
-func (b basic) SetJobText(ctx context.Context, id uuid.UUID, text string) error {
+func (b basic) SetJobText(ctx context.Context, id uuid.UUID, object s3.Object) error {
 	timeout, cancel := context.WithTimeout(ctx, b.Config.OperationTimeout)
 	defer cancel()
 	err := b.Queries.SetTextKey(timeout, queries.SetTextKeyParams{
 		ID:      sqlc.ToUUID(id),
-		TextKey: sqlc.ToTEXT(text),
+		TextKey: sqlc.ToTEXT(object.Key()),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to set text key: %w", err)

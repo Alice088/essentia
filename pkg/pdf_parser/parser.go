@@ -8,5 +8,7 @@ type Parser struct {
 }
 
 func NewParser(config env.WorkersParsing) Parser {
-	return Parser{}
+	return Parser{
+		Config: config,
+	}
 }
