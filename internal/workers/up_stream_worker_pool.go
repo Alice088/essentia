@@ -15,11 +15,11 @@ type UpStreamWorkerPoolConfig struct {
 	Timeout      time.Duration
 	Jobs         chan Job
 	GlobalCtx    context.Context
-	Worker       func(ctx context.Context, deps *dependencies.AppDeps) (Job, error)
+	Worker       func(ctx context.Context, deps dependencies.AppDeps) (Job, error)
 	WorkerName   string
 }
 
-func UpStreamWorkerPool(deps *dependencies.AppDeps, wg *sync.WaitGroup, config UpStreamWorkerPoolConfig) {
+func UpStreamWorkerPool(deps dependencies.AppDeps, wg *sync.WaitGroup, config UpStreamWorkerPoolConfig) {
 	go func() {
 		wg.Add(config.WorkersCount)
 		for i := range config.WorkersCount {

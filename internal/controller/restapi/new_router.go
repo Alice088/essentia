@@ -10,7 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func NewRouter(r *chi.Mux, deps *dependencies.AppDeps) {
+func NewRouter(r *chi.Mux, deps dependencies.AppDeps) {
 	middleware.UpMiddlewares(r, deps.Config, deps.Logger)
 	prometheus.UpMetrics()
 

@@ -2,76 +2,56 @@ package pdf
 
 import (
 	"Alice088/essentia/internal/app/dependencies"
+	"Alice088/essentia/internal/repo"
 	"Alice088/essentia/internal/service"
-	queries "Alice088/essentia/internal/sqlc/postgresql"
+	"Alice088/essentia/pkg/s3"
 	"context"
-	"io"
+	"errors"
+	"log/slog"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/minio/minio-go/v7"
 )
 
 type basic struct {
-	Deps *dependencies.AppDeps
+	S3     s3.S3
+	Logger *slog.Logger
+	Repo   repo.PDF
 }
 
-func New(appDeps *dependencies.AppDeps) service.PDF {
+func New(deps dependencies.AppDeps, repo repo.PDF) service.PDF {
 	return &basic{
-		Deps: appDeps,
+		S3:     deps.S3,
+		Logger: deps.Logger,
+		Repo:   repo,
 	}
 }
 
 func (s *basic) Enqueue(
 	ctx context.Context,
-	reader io.Reader,
-	size int64,
+	file s3.File,
 ) (uuid.UUID, error) {
-	jobID := uuid.New()
-	objectKey := jobID.String() + ".pdf"
+	file.Object = s3.NewPDF()
 
 	uploaded := false
 	defer func() {
 		if !uploaded {
-			ctxTimeout, cancel := context.WithTimeout(context.Background(), s.Deps.Config.MinIO.OperationTimeout)
-			defer cancel()
-
-			err := s.Deps.MinIO.RemoveObject(ctxTimeout, "pdf", objectKey, minio.RemoveObjectOptions{})
+			err := s.S3.Delete(ctx, file.Object)
 			if err != nil {
-				s.Deps.Logger.Error("failed to remove object", "object", objectKey, "error", err)
+				s.Logger.Error(err.Error(), "error", errors.Unwrap(err))
 			}
 		}
 	}()
 
-	ctxTimeout, cancel := context.WithTimeout(ctx, s.Deps.Config.MinIO.OperationTimeout)
-	defer cancel()
-	_, err := s.Deps.MinIO.PutObject(
-		ctxTimeout,
-		"pdf",
-		objectKey,
-		reader,
-		size,
-		minio.PutObjectOptions{
-			ContentType: "application/pdf",
-		},
-	)
+	err := s.S3.Put(ctx, file)
 	if err != nil {
 		return uuid.Nil, err
 	}
 
-	ctxTimeout, cancel = context.WithTimeout(ctx, s.Deps.Config.DB.OperationTimeout)
-	defer cancel()
-	_, err = s.Deps.Queries.CreateJob(ctxTimeout, queries.CreateJobParams{
-		ID: pgtype.UUID{
-			Bytes: jobID,
-			Valid: true,
-		},
-		ObjectKey: objectKey,
-	})
+	id, err := s.Repo.CreateJob(ctx, file)
 	if err != nil {
 		return uuid.Nil, err
 	}
 
 	uploaded = true
-	return jobID, nil
+	return id, nil
 }

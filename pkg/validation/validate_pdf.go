@@ -26,7 +26,7 @@ type PDFInput struct {
 	Size   int64
 }
 
-func ValidatePDF(input PDFInput) Result {
+func PDF(input PDFInput) Result {
 	res := Result{
 		Error: nil,
 	}

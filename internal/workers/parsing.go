@@ -18,9 +18,7 @@ import (
 	"github.com/minio/minio-go/v7"
 )
 
-// TODO
-// - Добавить проверку что если это не первая попытка попытаться взять text из minio (или проверять что есть text_key)
-func Parsing(ctx context.Context, job Job, deps *dependencies.AppDeps) {
+func Parsing(ctx context.Context, job Job, deps dependencies.AppDeps) {
 	logger := deps.Logger.With("uuid=", job.UUID.String(), "stage", "parsing")
 	textObjectName := fmt.Sprintf("%s.txt", job.UUID.String())
 	start := time.Now()
@@ -74,7 +72,7 @@ func Parsing(ctx context.Context, job Job, deps *dependencies.AppDeps) {
 	}()
 
 	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.MinIO.OperationTimeout)
-	err = deps.MinIO.FGetObject(ctxTimeout, "pdf", job.ObjectKey, tmpFile.Name(), minio.GetObjectOptions{})
+	err = deps.S3.FGetObject(ctxTimeout, "pdf", job.ObjectKey, tmpFile.Name(), minio.GetObjectOptions{})
 	cancel()
 	if err != nil {
 		logger.Error("Failed to get file from minio", "error", err.Error())
@@ -102,7 +100,7 @@ func Parsing(ctx context.Context, job Job, deps *dependencies.AppDeps) {
 	}
 
 	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.MinIO.OperationTimeout)
-	_, err = deps.MinIO.PutObject(
+	_, err = deps.S3.PutObject(
 		ctxTimeout,
 		"pdf",
 		textObjectName,
@@ -144,7 +142,7 @@ func Parsing(ctx context.Context, job Job, deps *dependencies.AppDeps) {
 	}
 }
 
-func isFailed(ctx context.Context, task Job, logger *slog.Logger, err *error, parsingErr *errx.ParsingError, deps *dependencies.AppDeps) {
+func isFailed(ctx context.Context, task Job, logger *slog.Logger, err *error, parsingErr *errx.ParsingError, deps dependencies.AppDeps) {
 	if err != nil && *err != nil {
 		metrics.ParsingTotal.WithLabelValues(metrics.Failed).Inc()
 

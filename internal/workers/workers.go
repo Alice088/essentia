@@ -19,10 +19,10 @@ type ConsumerWorkerPoolConfig struct {
 	WorkersCount int
 	Timeout      time.Duration
 	Jobs         chan Job
-	Workers      func(ctx context.Context, in Job, deps *dependencies.AppDeps)
+	Workers      func(ctx context.Context, in Job, deps dependencies.AppDeps)
 }
 
-func UpConsumerWorkerPool(deps *dependencies.AppDeps, wg *sync.WaitGroup, config ConsumerWorkerPoolConfig) {
+func UpConsumerWorkerPool(deps dependencies.AppDeps, wg *sync.WaitGroup, config ConsumerWorkerPoolConfig) {
 	go func() {
 		wg.Add(config.WorkersCount)
 		for i := range config.WorkersCount {

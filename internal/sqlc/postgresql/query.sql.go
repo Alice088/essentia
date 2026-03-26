@@ -183,7 +183,7 @@ func (q *Queries) CreateChunkTasksBatch(ctx context.Context, arg CreateChunkTask
 
 const createJob = `-- name: CreateJob :one
 INSERT INTO jobs (id, object_key)
-VALUES ($1, $2) RETURNING id, stage, status, object_key, attempts, text_key, cleaned_text_key, summary_key, error, error_type, created_at, updated_at
+VALUES ($1, $2) RETURNING id
 `
 
 type CreateJobParams struct {
@@ -191,24 +191,11 @@ type CreateJobParams struct {
 	ObjectKey string
 }
 
-func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (Job, error) {
+func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (pgtype.UUID, error) {
 	row := q.db.QueryRow(ctx, createJob, arg.ID, arg.ObjectKey)
-	var i Job
-	err := row.Scan(
-		&i.ID,
-		&i.Stage,
-		&i.Status,
-		&i.ObjectKey,
-		&i.Attempts,
-		&i.TextKey,
-		&i.CleanedTextKey,
-		&i.SummaryKey,
-		&i.Error,
-		&i.ErrorType,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const deleteJob = `-- name: DeleteJob :exec

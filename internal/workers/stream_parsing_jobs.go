@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-func StreamParsingJobs(ctx context.Context, deps *dependencies.AppDeps) (job Job, err error) {
+func StreamParsingJobs(ctx context.Context, deps dependencies.AppDeps) (job Job, err error) {
 	ctxTimeout, cancel := context.WithTimeout(ctx, deps.Config.DB.OperationTimeout)
 	defer cancel()
 	tx, err := deps.DB.Begin(ctxTimeout)

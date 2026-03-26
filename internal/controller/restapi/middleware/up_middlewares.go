@@ -12,7 +12,7 @@ import (
 	slogchi "github.com/samber/slog-chi"
 )
 
-func UpMiddlewares(r *chi.Mux, cfg *env.Config, logger *slog.Logger) {
+func UpMiddlewares(r *chi.Mux, cfg env.Config, logger *slog.Logger) {
 	r.Use(slogchi.NewWithFilters(
 		logger,
 		slogchi.IgnorePath("/metrics"),

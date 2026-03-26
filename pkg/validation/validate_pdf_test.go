@@ -19,7 +19,7 @@ func TestBasicValid_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.ContentLength = int64(len(body))
 
-	res := ValidatePDF(PDFInput{
+	res := PDF(PDFInput{
 		Size:   req.ContentLength,
 		Reader: bytes.NewBuffer(body),
 	})
@@ -50,7 +50,7 @@ func TestBasicValid_FileTooLargeContentLength(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.ContentLength = size.MB5 + 1
 
-	res := ValidatePDF(PDFInput{
+	res := PDF(PDFInput{
 		Size:   req.ContentLength,
 		Reader: bytes.NewBuffer(body),
 	})
@@ -79,7 +79,7 @@ func TestBasicValid_FileTooLargeUnknownSize(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req.Body = http.MaxBytesReader(rr, req.Body, size.MB5)
 
-	res := ValidatePDF(PDFInput{
+	res := PDF(PDFInput{
 		Size:   req.ContentLength,
 		Reader: req.Body,
 	})
@@ -109,7 +109,7 @@ func TestBasicValid_InvalidHeader(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.ContentLength = int64(len(body))
 
-	res := ValidatePDF(PDFInput{
+	res := PDF(PDFInput{
 		Size:   req.ContentLength,
 		Reader: bytes.NewBuffer(body),
 	})
@@ -135,7 +135,7 @@ func TestBasicValid_ShortBody(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.ContentLength = int64(len(body))
 
-	res := ValidatePDF(PDFInput{
+	res := PDF(PDFInput{
 		Size:   req.ContentLength,
 		Reader: bytes.NewBuffer(body),
 	})
@@ -162,7 +162,7 @@ func TestBasicValid_UnknownSizeUsesActualBufferedLength(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.ContentLength = -1
 
-	res := ValidatePDF(PDFInput{
+	res := PDF(PDFInput{
 		Size:   req.ContentLength,
 		Reader: bytes.NewBuffer(body),
 	})

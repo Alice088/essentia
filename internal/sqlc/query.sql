@@ -1,6 +1,6 @@
 -- name: CreateJob :one
 INSERT INTO jobs (id, object_key)
-VALUES ($1, $2) RETURNING *;
+VALUES ($1, $2) RETURNING id;
 
 -- name: GetJob :one
 SELECT *
