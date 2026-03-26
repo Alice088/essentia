@@ -20,7 +20,7 @@ CREATE TYPE job_stage AS ENUM (
 
 CREATE TYPE work_status AS ENUM ('pending', 'processing', 'completed', 'failed');
 
-CREATE TYPE parsing_error_type AS ENUM (
+CREATE TYPE error_type AS ENUM (
     'open',
     'corrupted',
     'encrypted',
@@ -43,7 +43,7 @@ CREATE TABLE jobs (
     cleaned_text_key TEXT,
     summary_key TEXT,
     error TEXT,
-    error_type parsing_error_type,
+    error_type error_type,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

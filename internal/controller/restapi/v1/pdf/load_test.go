@@ -149,14 +149,14 @@ func TestHandlerLoad_UnknownContentLengthUsesBufferedSize(t *testing.T) {
 // middleware-enforced body limits are surfaced as a safe 400 response and the
 // service is not called.
 func TestHandlerLoad_RejectsOversizedBodyWithUnknownContentLength(t *testing.T) {
-	body := append([]byte("%PDF-"), bytes.Repeat([]byte("a"), size.MB5)...)
+	body := append([]byte("%PDF-"), bytes.Repeat([]byte("a"), real_size.MB5)...)
 	h := newTestHandler(t, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/pdf/load", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/pdf")
 	req.ContentLength = -1
 	rr := httptest.NewRecorder()
-	req.Body = http.MaxBytesReader(rr, req.Body, size.MB5)
+	req.Body = http.MaxBytesReader(rr, req.Body, real_size.MB5)
 
 	h.Load().ServeHTTP(rr, req)
 
@@ -212,7 +212,7 @@ func TestHandlerLoad_FileTooLarge(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/pdf/load", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/pdf")
-	req.ContentLength = size.MB5 + 1
+	req.ContentLength = real_size.MB5 + 1
 	rr := httptest.NewRecorder()
 
 	h.Load().ServeHTTP(rr, req)

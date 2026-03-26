@@ -1,39 +1,45 @@
 package workers
 
 import (
-	"Alice088/essentia/internal/app/dependencies"
-	"Alice088/essentia/internal/sqlc"
+	"Alice088/essentia/internal/repo"
 	queries "Alice088/essentia/internal/sqlc/postgresql"
 	errx "Alice088/essentia/pkg/errors"
-	"Alice088/essentia/pkg/pdf_reader"
+	"Alice088/essentia/pkg/pdf_parser"
 	"Alice088/essentia/pkg/prometheus/metrics"
+	"Alice088/essentia/pkg/s3"
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"os"
 	"strings"
 	"time"
-
-	"github.com/minio/minio-go/v7"
 )
 
-// TODO
-// - Добавить проверку что если это не первая попытка попытаться взять text из minio (или проверять что есть text_key)
-func Parsing(ctx context.Context, job Job, deps *dependencies.AppDeps) {
-	logger := deps.Logger.With("uuid=", job.UUID.String(), "stage", "parsing")
-	textObjectName := fmt.Sprintf("%s.txt", job.UUID.String())
+type Parser struct {
+	Logger    *slog.Logger
+	Repo      repo.Job
+	S3        s3.S3
+	PDFParser pdf_parser.Parser
+}
+
+func (p Parser) Parsing(ctx context.Context, job Job) {
+	logger := p.Logger.With(
+		"uuid=", job.Object.Name.String(),
+		"stage", "parsing",
+		"attempt", job.Attempt+1,
+	)
+	txt := s3.ToTXT(job.Object)
 	start := time.Now()
 
 	var err error
 	var pdfSizeBytes int64
 	hasPDFSize := false
 	defer func() {
-		parsingErr := toParsingError(err)
+		pipeErr := errx.ToPipeError(err)
 		status := metrics.Success
 		if err != nil {
 			status = metrics.Failed
-			metrics.ParsingErrorsTotal.WithLabelValues(string(parsingErr.Code)).Inc()
+			metrics.ParsingErrorsTotal.WithLabelValues(string(pipeErr.Code)).Inc()
 		}
 
 		metrics.ParsingDurationSeconds.WithLabelValues(status).Observe(time.Since(start).Seconds())
@@ -41,141 +47,90 @@ func Parsing(ctx context.Context, job Job, deps *dependencies.AppDeps) {
 			metrics.ParsingPDFSizeBytes.WithLabelValues(status).Observe(float64(pdfSizeBytes))
 		}
 
-		ctxTimeout, cancel := context.WithTimeout(context.Background(), deps.Config.DB.OperationTimeout)
-		defer cancel()
-		isFailed(ctxTimeout, job, logger, &err, parsingErr, deps)
+		if err != nil {
+			metrics.ParsingTotal.WithLabelValues(metrics.Failed).Inc()
+			p.failed(context.Background(), repo.Fail{
+				JobId:     job.Object.Name,
+				Error:     err,
+				ErrorType: queries.ErrorType(pipeErr.Code),
+			})
+			return
+		}
+		metrics.ParsingTotal.WithLabelValues(metrics.Success).Inc()
 	}()
 
-	ctxTimeout, cancel := context.WithTimeout(context.Background(), deps.Config.DB.OperationTimeout)
-	err = deps.Queries.SetJobStage(ctxTimeout, queries.SetJobStageParams{
-		ID:    sqlc.ToUUID(job.UUID),
-		Stage: queries.JobStageParsing,
-	})
-	cancel()
+	err = p.Repo.SetJobStage(ctx, job.Object.Name, string(queries.JobStageParsing))
 	if err != nil {
-		logger.Error("Failed to set job state", "error", err.Error())
-		err = errx.NewParsingError(errx.ParsingErrDB, fmt.Errorf("failed to set job state: %w", err))
+		logger.Error(err.Error(), "error", errors.Unwrap(err))
+		err = errx.NewPipeError(errx.ErrDB, err)
 		return
 	}
 
-	tmpFile, err := os.CreateTemp("", "*.pdf")
+	err = p.PDFParser.CreateTMP()
 	if err != nil {
-		logger.Error("Failed to create tmp file", "error", err.Error())
-		err = errx.NewParsingError(errx.ParsingErrOpen, fmt.Errorf("failed to create tmp file: %w", err))
+		logger.Error(err.Error(), "error", errors.Unwrap(err))
+		err = errx.NewPipeError(errx.ErrOpen, err)
 		return
 	}
+
 	defer func() {
-		_ = tmpFile.Close()
-
-		tmpErr := os.Remove(tmpFile.Name())
+		_ = p.PDFParser.TMP.F.Close()
+		tmpErr := os.Remove(p.PDFParser.TMP.Path())
 		if tmpErr != nil {
-			logger.Error("Failed to cleanup tmp file", "tmp_file", tmpFile.Name(), "error", tmpErr.Error())
+			logger.Error("Failed to cleanup tmp file", "tmp", p.PDFParser.TMP.Path(), "error", tmpErr.Error())
 		}
 	}()
 
-	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.MinIO.OperationTimeout)
-	err = deps.MinIO.FGetObject(ctxTimeout, "pdf", job.ObjectKey, tmpFile.Name(), minio.GetObjectOptions{})
-	cancel()
+	err = p.S3.FGet(ctx, job.Object, p.PDFParser.TMP)
 	if err != nil {
-		logger.Error("Failed to get file from minio", "error", err.Error())
-		err = errx.NewParsingError(errx.ParsingErrStorageDownload, fmt.Errorf("failed to get file from minio: %w", err))
+		logger.Error(err.Error(), "error", errors.Unwrap(err))
+		err = errx.NewPipeError(errx.ErrStorageDownload, err)
 		return
 	}
 
-	tmpFileInfo, tmpStatErr := tmpFile.Stat()
-	if tmpStatErr != nil {
-		logger.Error("Failed to stat tmp file", "tmp_file", tmpFile.Name(), "error", tmpStatErr.Error())
-		err = errx.NewParsingError(errx.ParsingErrOpen, fmt.Errorf("failed to stat tmp file: %w", tmpStatErr))
+	pdfSizeBytes, err = p.PDFParser.TMP.Size()
+	if err != nil {
+		logger.Error(err.Error(), "tmp", p.PDFParser.TMP.Path(), "error", errors.Unwrap(err))
+		err = errx.NewPipeError(errx.ErrOpen, err)
 		return
 	}
-
-	pdfSizeBytes = tmpFileInfo.Size()
 	hasPDFSize = true
 
-	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.Workers.Parsing.ReaderContextTimeout)
-	defer cancel()
-	res, err := pdf_reader.Read(ctxTimeout, tmpFile.Name())
+	parse, err := p.PDFParser.Parse(ctx)
 	if err != nil {
-		logger.Error("Failed to read pdf", "error", err.Error())
-		err = fmt.Errorf("failed to read pdf: %w", err)
+		logger.Error("Failed to read pdf", "error", errors.Unwrap(err))
 		return
 	}
 
-	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.MinIO.OperationTimeout)
-	_, err = deps.MinIO.PutObject(
-		ctxTimeout,
-		"pdf",
-		textObjectName,
-		strings.NewReader(res.Text),
-		int64(res.Metadata.Size),
-		minio.PutObjectOptions{
-			ContentType: "text/plain",
-		},
-	)
-	cancel()
-	if err != nil {
-		logger.Error("Failed to put content to minio", "error", err.Error())
-		err = errx.NewParsingError(errx.ParsingErrStorageUpload, fmt.Errorf("failed to put content to minio: %w", err))
-		return
-	}
-
-	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.DB.OperationTimeout)
-	err = deps.Queries.SetTextKey(ctxTimeout, queries.SetTextKeyParams{
-		ID:      sqlc.ToUUID(job.UUID),
-		TextKey: sqlc.ToTEXT(textObjectName),
+	err = p.S3.Put(ctx, s3.File{
+		Object: txt,
+		Size:   pdfSizeBytes,
+		Reader: strings.NewReader(parse.Text),
 	})
-	cancel()
 	if err != nil {
-		logger.Error("Failed to set text key", "error", err.Error())
-		err = errx.NewParsingError(errx.ParsingErrDB, fmt.Errorf("failed to set text key: %w", err))
+		logger.Error(err.Error(), "error", errors.Unwrap(err))
+		err = errx.NewPipeError(errx.ErrStorageUpload, err)
 		return
 	}
 
-	ctxTimeout, cancel = context.WithTimeout(ctx, deps.Config.DB.OperationTimeout)
-	err = deps.Queries.AdvanceJobStage(ctxTimeout, queries.AdvanceJobStageParams{
-		ID:    sqlc.ToUUID(job.UUID),
-		Stage: "cleaning",
-	})
-	cancel()
+	err = p.Repo.SetJobText(ctx, job.Object.Name, txt)
 	if err != nil {
-		logger.Error("Failed to advance job", "error", err.Error())
-		err = errx.NewParsingError(errx.ParsingErrDB, fmt.Errorf("failed to advance job: %w", err))
+		logger.Error(err.Error(), "error", errors.Unwrap(err))
+		err = errx.NewPipeError(errx.ErrDB, err)
+		return
+	}
+
+	err = p.Repo.AdvanceJobStage(ctx, job.Object.Name, string(queries.JobStageCleaning))
+	if err != nil {
+		logger.Error(err.Error(), "error", errors.Unwrap(err))
+		err = errx.NewPipeError(errx.ErrDB, err)
 		return
 	}
 }
 
-func isFailed(ctx context.Context, task Job, logger *slog.Logger, err *error, parsingErr *errx.ParsingError, deps *dependencies.AppDeps) {
-	if err != nil && *err != nil {
-		metrics.ParsingTotal.WithLabelValues(metrics.Failed).Inc()
-
-		dbErr := deps.Queries.FailJob(ctx, queries.FailJobParams{
-			ID:    sqlc.ToUUID(task.UUID),
-			Error: sqlc.ToTEXT((*err).Error()),
-			ErrorType: queries.NullParsingErrorType{
-				ParsingErrorType: queries.ParsingErrorType(parsingErr.Code),
-				Valid:            true,
-			},
-		})
-		if dbErr != nil {
-			logger.Error("Failed to fail job", "error", dbErr.Error())
-		}
-	} else {
-		metrics.ParsingTotal.WithLabelValues(metrics.Success).Inc()
+func (p Parser) failed(ctx context.Context, fail repo.Fail) {
+	err := p.Repo.FailJob(ctx, fail)
+	if err != nil {
+		p.Logger.Error(err.Error(), "error", errors.Unwrap(err))
 	}
-}
-
-func toParsingError(err error) *errx.ParsingError {
-	if err == nil {
-		return errx.NewParsingError(errx.ParsingErrUnknown, nil)
-	}
-
-	if parsingErr, ok := errors.AsType[*errx.ParsingError](err); ok {
-		if parsingErr.Code == "" {
-			parsingErr.Code = errx.ParsingErrUnknown
-		}
-
-		return parsingErr
-	}
-
-	return errx.NewParsingError(errx.ParsingErrUnknown, err)
 }

@@ -2,8 +2,8 @@ package main
 
 import (
 	errs "Alice088/essentia/pkg/errors"
-	"Alice088/essentia/pkg/pdf_reader"
-	"Alice088/essentia/pkg/size"
+	"Alice088/essentia/pkg/pdf_parser"
+	"Alice088/essentia/pkg/real_size"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -18,7 +18,7 @@ import (
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
-			errT := errs.ParsingErrUnknown
+			errT := errs.ErrUnknown
 			if err, ok := r.(error); ok {
 				errT = classifyOpenPDFError(err)
 			}
@@ -27,7 +27,7 @@ func main() {
 	}()
 
 	if len(os.Args) < 2 {
-		writeErr(errs.ParsingErrOpen, fmt.Errorf("no file specified"))
+		writeErr(errs.ErrOpen, fmt.Errorf("no file specified"))
 		return
 	}
 
@@ -35,17 +35,17 @@ func main() {
 
 	fi, err := os.Lstat(path)
 	if err != nil {
-		writeErr(errs.ParsingErrOpen, err)
+		writeErr(errs.ErrOpen, err)
 		return
 	}
 
 	if fi.Mode()&os.ModeSymlink != 0 {
-		writeErr(errs.ParsingErrOpen, fmt.Errorf("symlinks not allowed"))
+		writeErr(errs.ErrOpen, fmt.Errorf("symlinks not allowed"))
 		return
 	}
 
-	if fi.Size() > size.MB5 {
-		writeErr(errs.ParsingErrOpen, fmt.Errorf("file too large"))
+	if fi.Size() > real_size.MB5 {
+		writeErr(errs.ErrOpen, fmt.Errorf("file too large"))
 		return
 	}
 
@@ -63,55 +63,55 @@ func main() {
 		return
 	}
 
-	_, err = io.CopyN(&buf, text, size.MB5)
+	_, err = io.CopyN(&buf, text, real_size.MB5)
 	if err != nil && err != io.EOF {
-		writeErr(errs.ParsingErrExtract, fmt.Errorf("failed to read buffer: %w", err))
+		writeErr(errs.ErrExtract, fmt.Errorf("failed to read buffer: %w", err))
 		return
 	}
 
 	if buf.Len() == 0 {
-		writeErr(errs.ParsingErrEmpty, errors.New("pdf is empty"))
+		writeErr(errs.ErrEmpty, errors.New("pdf is empty"))
 		return
 	}
 
 	content := buf.String()
-	_ = json.NewEncoder(os.Stdout).Encode(pdf_reader.ReadResponse{
+	_ = json.NewEncoder(os.Stdout).Encode(pdf_parser.ReadResponse{
 		Text: content,
-		Metadata: pdf_reader.Metadata{
+		Metadata: pdf_parser.Metadata{
 			Size: buf.Len(),
 		},
 	})
 }
 
-func writeErr(code errs.ParsingErrorCode, err error) {
-	_ = json.NewEncoder(os.Stdout).Encode(pdf_reader.ReadResponse{
+func writeErr(code errs.PipelineError, err error) {
+	_ = json.NewEncoder(os.Stdout).Encode(pdf_parser.ReadResponse{
 		Error:     err.Error(),
 		ErrorCode: string(code),
 	})
 }
 
-func classifyOpenPDFError(err error) errs.ParsingErrorCode {
+func classifyOpenPDFError(err error) errs.PipelineError {
 	msg := strings.ToLower(err.Error())
 	if strings.Contains(msg, "encrypted") || strings.Contains(msg, "password") {
-		return errs.ParsingErrEncrypted
+		return errs.ErrEncrypted
 	}
 
 	if strings.Contains(msg, "malformed") || strings.Contains(msg, "corrupt") || strings.Contains(msg, "invalid") {
-		return errs.ParsingErrCorrupted
+		return errs.ErrCorrupted
 	}
 
-	return errs.ParsingErrOpen
+	return errs.ErrOpen
 }
 
-func classifyExtractError(err error) errs.ParsingErrorCode {
+func classifyExtractError(err error) errs.PipelineError {
 	msg := strings.ToLower(err.Error())
 	if strings.Contains(msg, "encrypted") || strings.Contains(msg, "password") {
-		return errs.ParsingErrEncrypted
+		return errs.ErrEncrypted
 	}
 
 	if strings.Contains(msg, "malformed") || strings.Contains(msg, "corrupt") || strings.Contains(msg, "invalid") {
-		return errs.ParsingErrCorrupted
+		return errs.ErrCorrupted
 	}
 
-	return errs.ParsingErrExtract
+	return errs.ErrExtract
 }

@@ -6,5 +6,5 @@ import (
 )
 
 func main() {
-	app.Run(new(env.Load("./.env")))
+	app.Run(env.Load("./.env"))
 }

@@ -6,29 +6,28 @@ import (
 	queries "Alice088/essentia/internal/sqlc/postgresql"
 	errs "Alice088/essentia/pkg/errors"
 	httpx "Alice088/essentia/pkg/http"
+	"Alice088/essentia/pkg/s3"
 	"Alice088/essentia/pkg/validation"
 	"errors"
 	"log/slog"
 	"net/http"
 	"time"
-
-	"github.com/minio/minio-go/v7"
 )
 
 type Handler struct {
 	Logger  *slog.Logger
 	Queries *queries.Queries
 	Timeout time.Duration
-	MinIO   *minio.Client
+	S3      s3.S3
 	Service service.PDF
 }
 
-func NewHandler(appDeps *dependencies.AppDeps, serv service.PDF) Handler {
+func NewHandler(appDeps dependencies.AppDeps, serv service.PDF) Handler {
 	return Handler{
 		Logger:  appDeps.Logger,
 		Queries: appDeps.Queries,
 		Timeout: appDeps.Config.HTTP.Timeout,
-		MinIO:   appDeps.MinIO,
+		S3:      appDeps.S3,
 		Service: serv,
 	}
 }
@@ -37,7 +36,7 @@ func (h *Handler) Load() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 
-		pdf := validation.ValidatePDF(validation.PDFInput{
+		pdf := validation.PDF(validation.PDFInput{
 			Size:   r.ContentLength,
 			Reader: r.Body,
 		})
@@ -55,13 +54,14 @@ func (h *Handler) Load() http.HandlerFunc {
 			return
 		}
 
-		jobID, err := h.Service.Enqueue(
-			r.Context(),
-			pdf.Metadata.Reader,
-			pdf.Metadata.Size,
+		jobID, err := h.Service.Enqueue(r.Context(),
+			s3.File{
+				Size:   pdf.Metadata.Size,
+				Reader: pdf.Metadata.Reader,
+			},
 		)
 		if err != nil {
-			h.Logger.Error("create job failed", "error", err)
+			h.Logger.Error("create job failed", "error", errors.Unwrap(err))
 			httpx.HttpResponse(w, http.StatusInternalServerError, map[string]string{
 				"error": "failed to process file",
 			})

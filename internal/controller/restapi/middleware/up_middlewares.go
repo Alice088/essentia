@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"Alice088/essentia/pkg/env"
-	"Alice088/essentia/pkg/size"
+	"Alice088/essentia/pkg/real_size"
 	"log/slog"
 
 	"github.com/go-chi/chi/v5"
@@ -12,7 +12,7 @@ import (
 	slogchi "github.com/samber/slog-chi"
 )
 
-func UpMiddlewares(r *chi.Mux, cfg *env.Config, logger *slog.Logger) {
+func UpMiddlewares(r *chi.Mux, cfg env.Config, logger *slog.Logger) {
 	r.Use(slogchi.NewWithFilters(
 		logger,
 		slogchi.IgnorePath("/metrics"),
@@ -23,7 +23,7 @@ func UpMiddlewares(r *chi.Mux, cfg *env.Config, logger *slog.Logger) {
 	r.Use(middleware.Compress(5))
 	r.Use(middleware.Throttle(cfg.HTTP.MaxUser))
 	r.Use(middleware.Timeout(cfg.HTTP.Timeout))
-	r.Use(middleware.RequestSize(size.MB5))
+	r.Use(middleware.RequestSize(real_size.MB5))
 	r.Use(middleware.AllowContentEncoding(cfg.HTTP.AllowContentEncoding...))
 	r.Use(PrometheusHttpRequestTotal)
 	r.Use(HttpRequestsInFlight)

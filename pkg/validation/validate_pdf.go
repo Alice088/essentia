@@ -2,7 +2,7 @@ package validation
 
 import (
 	errs "Alice088/essentia/pkg/errors"
-	"Alice088/essentia/pkg/size"
+	"Alice088/essentia/pkg/real_size"
 	"bytes"
 	"errors"
 	"io"
@@ -26,12 +26,12 @@ type PDFInput struct {
 	Size   int64
 }
 
-func ValidatePDF(input PDFInput) Result {
+func PDF(input PDFInput) Result {
 	res := Result{
 		Error: nil,
 	}
 
-	if input.Size > size.MB5 {
+	if input.Size > real_size.MB5 {
 		return Result{
 			Error: &errs.PDFError{
 				Err:  errors.New("file too large"),

@@ -1,48 +1,58 @@
 package errors
 
-type ParsingErrorCode string
+import "errors"
+
+type PipelineError string
 
 const (
-	ParsingErrOpen            ParsingErrorCode = "open"
-	ParsingErrCorrupted       ParsingErrorCode = "corrupted"
-	ParsingErrEncrypted       ParsingErrorCode = "encrypted"
-	ParsingErrTimeout         ParsingErrorCode = "timeout"
-	ParsingErrExtract         ParsingErrorCode = "extract"
-	ParsingErrEmpty           ParsingErrorCode = "empty"
-	ParsingErrStorageDownload ParsingErrorCode = "storage_download"
-	ParsingErrStorageUpload   ParsingErrorCode = "storage_upload"
-	ParsingErrDB              ParsingErrorCode = "db"
-	ParsingErrUnknown         ParsingErrorCode = "unknown"
+	ErrOpen            PipelineError = "open"
+	ErrCorrupted       PipelineError = "corrupted"
+	ErrEncrypted       PipelineError = "encrypted"
+	ErrTimeout         PipelineError = "timeout"
+	ErrExtract         PipelineError = "extract"
+	ErrEmpty           PipelineError = "empty"
+	ErrStorageDownload PipelineError = "storage_download"
+	ErrStorageUpload   PipelineError = "storage_upload"
+	ErrDB              PipelineError = "db"
+	ErrUnknown         PipelineError = "unknown"
 )
 
-type ParsingError struct {
+type PipeError struct {
 	Err  error
-	Code ParsingErrorCode
+	Code PipelineError
 }
 
-func NewParsingError(code ParsingErrorCode, err error) *ParsingError {
+func NewPipeError(code PipelineError, err error) PipeError {
 	if code == "" {
-		code = ParsingErrUnknown
+		code = ErrUnknown
 	}
 
-	return &ParsingError{
+	return PipeError{
 		Err:  err,
 		Code: code,
 	}
 }
 
-func (e *ParsingError) Error() string {
-	if e == nil || e.Err == nil {
-		return "parsing error"
-	}
-
+func (e PipeError) Error() string {
 	return e.Err.Error()
 }
 
-func (e *ParsingError) Unwrap() error {
-	if e == nil {
-		return nil
+func (e PipeError) Unwrap() error {
+	return e.Err
+}
+
+func ToPipeError(err error) PipeError {
+	if err == nil {
+		return NewPipeError(ErrUnknown, nil)
 	}
 
-	return e.Err
+	if pipeError, ok := errors.AsType[PipeError](err); ok {
+		if pipeError.Code == "" {
+			pipeError.Code = ErrUnknown
+		}
+
+		return pipeError
+	}
+
+	return NewPipeError(ErrUnknown, err)
 }

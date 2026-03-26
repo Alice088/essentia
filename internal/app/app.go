@@ -3,13 +3,15 @@ package app
 import (
 	"Alice088/essentia/internal/app/dependencies"
 	"Alice088/essentia/internal/controller/restapi"
+	"Alice088/essentia/internal/repo/job"
 	queries "Alice088/essentia/internal/sqlc/postgresql"
 	"Alice088/essentia/internal/workers"
 	"Alice088/essentia/pkg/env"
+	"Alice088/essentia/pkg/pdf_parser"
+	"Alice088/essentia/pkg/wminio"
+	"Alice088/essentia/pkg/xlogger"
 	"context"
 	"errors"
-	"io"
-	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -19,38 +21,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
-	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-func Run(cfg *env.Config) {
+func Run(cfg env.Config) {
 	ctx, stop := signal.NotifyContext(
-		context.Background(), syscall.SIGINT, syscall.SIGTERM)
-
-	logRotator := &lumberjack.Logger{
-		Filename:   "./logs/logs.log",
-		MaxSize:    10,
-		MaxBackups: 5,
-		MaxAge:     30,
-		Compress:   true,
-	}
-
-	var loggerLever slog.Level
-	if cfg.Env == "dev" {
-		loggerLever = slog.LevelDebug
-	} else {
-		loggerLever = slog.LevelInfo
-	}
-
-	mw := slog.NewJSONHandler(
-		io.MultiWriter(os.Stdout, logRotator),
-		&slog.HandlerOptions{
-			Level: loggerLever,
-		},
+		context.Background(), syscall.SIGINT, syscall.SIGTERM,
 	)
 
-	logger := slog.New(mw)
+	logger := xlogger.New(cfg)
 
 	ctxTimeout, cancel := context.WithTimeout(ctx, cfg.DB.OperationTimeout)
 	defer cancel()
@@ -62,55 +40,54 @@ func Run(cfg *env.Config) {
 	}
 	defer conn.Close()
 
-	q := queries.New(conn)
-
-	minioClient, err := minio.New(cfg.MinIO.Endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(cfg.MinIO.AccessKey, cfg.MinIO.SecretKey, ""),
-		Secure: cfg.MinIO.SSL,
-	})
+	s3, err := wminio.New(cfg.MinIO, "pdf")
 	if err != nil {
-		logger.Error("Unable to connect to minio", "error", err.Error())
+		logger.Error(err.Error(), "error", errors.Unwrap(err))
 		return
 	}
 
-	ctxTimeout, cancel = context.WithTimeout(ctx, cfg.MinIO.OperationTimeout)
-	defer cancel()
-
-	err = minioClient.MakeBucket(ctxTimeout, "pdf", minio.MakeBucketOptions{Region: cfg.MinIO.Location})
+	err = s3.CreateBucketIfNotExists(ctx)
 	if err != nil {
-		exists, errBucketExists := minioClient.BucketExists(ctxTimeout, "pdf")
-		if errBucketExists != nil || !exists {
-			logger.Error("Failed to check bucket exist or bucket doesn't exist", "error", err.Error())
-			return
-		}
+		logger.Error(err.Error(), "error", errors.Unwrap(err))
+		return
 	}
 
-	r := chi.NewRouter()
-
-	deps := &dependencies.AppDeps{
+	deps := dependencies.AppDeps{
 		Config:  cfg,
 		Logger:  logger,
-		MinIO:   minioClient,
-		Queries: q,
+		S3:      s3,
+		Queries: queries.New(conn),
 		DB:      conn,
 	}
+	deps.JobRepo = job.NewRepo(deps)
+
+	r := chi.NewRouter()
 	restapi.NewRouter(r, deps)
+
+	parser := workers.Parser{
+		Repo:      deps.JobRepo,
+		PDFParser: pdf_parser.NewParser(cfg.Workers.Parsing),
+		Logger:    logger,
+		S3:        s3,
+	}
 
 	wgConsumer := &sync.WaitGroup{}
 	wgProducer := &sync.WaitGroup{}
 
 	tasks := make(chan workers.Job, 4)
 	workers.UpConsumerWorkerPool(deps, wgConsumer, workers.ConsumerWorkerPoolConfig{
+		WorkerName:   "ParsingWorker",
 		Timeout:      cfg.Workers.Parsing.ContextTimeout,
 		WorkersCount: 2,
-		Fn:           workers.Parsing,
-		In:           tasks,
+		Workers:      parser.Parsing,
+		Jobs:         tasks,
 	})
 
-	workers.UpWriteNewestTasksWorkerPool(deps, wgProducer, workers.WriteNewestTasksWorkerPoolConfig{
+	workers.UpStreamWorkerPool(deps, wgProducer, workers.UpStreamWorkerPoolConfig{
+		WorkerName:   "StreamParsingJobsWorker",
 		Timeout:      cfg.Workers.Parsing.ContextTimeout,
 		WorkersCount: 2,
-		Fn:           workers.WriteNewestJobs,
+		Worker:       workers.StreamParsingJobs,
 		Jobs:         tasks,
 		GlobalCtx:    ctx,
 	})
@@ -144,7 +121,7 @@ func Run(cfg *env.Config) {
 		os.Exit(1)
 	}
 
-	logger.Info("waiting for producer workers...")
+	logger.Info("waiting for stream workers...")
 	wgProducer.Wait()
 	close(tasks)
 

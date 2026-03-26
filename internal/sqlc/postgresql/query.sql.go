@@ -34,8 +34,13 @@ const claimNextJobForStage = `-- name: ClaimNextJobForStage :one
 WITH cte AS (
     SELECT id
     FROM jobs
-    WHERE jobs.status = 'pending'
-      AND jobs.stage = $1
+    WHERE jobs.status IN ('pending', 'failed')
+      AND jobs.stage = ANY($1::text[]::job_stage[])
+      AND jobs.attempts < 3
+      AND (
+          jobs.error_type IS NULL
+          OR jobs.error_type = ANY($2::text[]::error_type[])
+      )
     ORDER BY created_at
     LIMIT 1
     FOR UPDATE SKIP LOCKED
@@ -47,36 +52,25 @@ FROM cte
 WHERE j.id = cte.id
 RETURNING
     j.id,
-    j.stage,
-    j.status,
     j.object_key,
-    j.attempts,
-    j.text_key,
-    j.cleaned_text_key,
-    j.summary_key,
-    j.error,
-    j.error_type,
-    j.created_at,
-    j.updated_at
+    j.attempts
 `
 
-func (q *Queries) ClaimNextJobForStage(ctx context.Context, stage JobStage) (Job, error) {
-	row := q.db.QueryRow(ctx, claimNextJobForStage, stage)
-	var i Job
-	err := row.Scan(
-		&i.ID,
-		&i.Stage,
-		&i.Status,
-		&i.ObjectKey,
-		&i.Attempts,
-		&i.TextKey,
-		&i.CleanedTextKey,
-		&i.SummaryKey,
-		&i.Error,
-		&i.ErrorType,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
+type ClaimNextJobForStageParams struct {
+	Column1 []string
+	Column2 []string
+}
+
+type ClaimNextJobForStageRow struct {
+	ID        pgtype.UUID
+	ObjectKey string
+	Attempts  int32
+}
+
+func (q *Queries) ClaimNextJobForStage(ctx context.Context, arg ClaimNextJobForStageParams) (ClaimNextJobForStageRow, error) {
+	row := q.db.QueryRow(ctx, claimNextJobForStage, arg.Column1, arg.Column2)
+	var i ClaimNextJobForStageRow
+	err := row.Scan(&i.ID, &i.ObjectKey, &i.Attempts)
 	return i, err
 }
 
@@ -191,7 +185,7 @@ func (q *Queries) CreateChunkTasksBatch(ctx context.Context, arg CreateChunkTask
 
 const createJob = `-- name: CreateJob :one
 INSERT INTO jobs (id, object_key)
-VALUES ($1, $2) RETURNING id, stage, status, object_key, attempts, text_key, cleaned_text_key, summary_key, error, error_type, created_at, updated_at
+VALUES ($1, $2) RETURNING id
 `
 
 type CreateJobParams struct {
@@ -199,24 +193,11 @@ type CreateJobParams struct {
 	ObjectKey string
 }
 
-func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (Job, error) {
+func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (pgtype.UUID, error) {
 	row := q.db.QueryRow(ctx, createJob, arg.ID, arg.ObjectKey)
-	var i Job
-	err := row.Scan(
-		&i.ID,
-		&i.Stage,
-		&i.Status,
-		&i.ObjectKey,
-		&i.Attempts,
-		&i.TextKey,
-		&i.CleanedTextKey,
-		&i.SummaryKey,
-		&i.Error,
-		&i.ErrorType,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const deleteJob = `-- name: DeleteJob :exec
@@ -260,7 +241,7 @@ WHERE id = $1
 type FailJobParams struct {
 	ID        pgtype.UUID
 	Error     pgtype.Text
-	ErrorType NullParsingErrorType
+	ErrorType NullErrorType
 }
 
 func (q *Queries) FailJob(ctx context.Context, arg FailJobParams) error {

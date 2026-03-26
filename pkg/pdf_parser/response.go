@@ -1,4 +1,4 @@
-package pdf_reader
+package pdf_parser
 
 type ReadResponse struct {
 	Text      string   `json:"text"`
