@@ -29,7 +29,7 @@ func (r *Parser) Parse(ctx context.Context) (ReadResponse, error) {
 		"-p", "MemoryHigh=90M",
 		"-p", "CPUQuota=25%",
 		"-p", "TasksMax=100",
-		"/home/gosha/Documents/projects/essentia/build/pdf_reader",
+		filepath.Join(".", "build", "pdf_reader"),
 		r.TMP.Path(),
 	)
 
@@ -45,10 +45,15 @@ func (r *Parser) Parse(ctx context.Context) (ReadResponse, error) {
 	}, 1)
 
 	go func() {
-		done <- struct {
+		out := struct {
 			out []byte
 			err error
 		}{std, err}
+		select {
+		case done <- out:
+		case <-timeout.Done():
+			return
+		}
 	}()
 
 	select {
@@ -59,7 +64,7 @@ func (r *Parser) Parse(ctx context.Context) (ReadResponse, error) {
 			if err != nil {
 				return ReadResponse{}, errs.NewPipeError(
 					errs.ErrUnknown,
-					fmt.Errorf("failed to unmarshal parser output: %w; output: %s", err, string(res.out)),
+					fmt.Errorf("failed to unmarshal parser output: %w", err),
 				)
 			}
 
@@ -71,7 +76,7 @@ func (r *Parser) Parse(ctx context.Context) (ReadResponse, error) {
 		if res.err != nil {
 			return ReadResponse{}, errs.NewPipeError(
 				errs.ErrUnknown,
-				fmt.Errorf("process failed: %w; output: %s", res.err, string(res.out)),
+				fmt.Errorf("process failed: %w", res.err),
 			)
 		}
 

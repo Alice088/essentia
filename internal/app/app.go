@@ -65,10 +65,10 @@ func Run(cfg env.Config) {
 	restapi.NewRouter(r, deps)
 
 	parser := workers.Parser{
-		Repo:   deps.JobRepo,
-		Parser: pdf_parser.NewParser(cfg.Workers.Parsing),
-		Logger: logger,
-		S3:     s3,
+		Repo:      deps.JobRepo,
+		PDFParser: pdf_parser.NewParser(cfg.Workers.Parsing),
+		Logger:    logger,
+		S3:        s3,
 	}
 
 	wgConsumer := &sync.WaitGroup{}

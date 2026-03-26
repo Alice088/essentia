@@ -18,12 +18,19 @@ type basic struct {
 	Config  env.DB
 }
 
-func (b basic) AdvanceJobStage(ctx context.Context, id uuid.UUID, stage queries.JobStage) error {
-	ctxTimeout, cancel := context.WithTimeout(ctx, b.Config.OperationTimeout)
+func NewRepo(deps dependencies.AppDeps) repo.Job {
+	return basic{
+		Queries: deps.Queries,
+		Config:  deps.Config.DB,
+	}
+}
+
+func (b basic) AdvanceJobStage(ctx context.Context, id uuid.UUID, stage string) error {
+	timeout, cancel := context.WithTimeout(ctx, b.Config.OperationTimeout)
 	defer cancel()
-	err := b.Queries.AdvanceJobStage(ctxTimeout, queries.AdvanceJobStageParams{
+	err := b.Queries.AdvanceJobStage(timeout, queries.AdvanceJobStageParams{
 		ID:    sqlc.ToUUID(id),
-		Stage: stage,
+		Stage: queries.JobStage(stage),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to advance job: %w", err)
@@ -32,9 +39,9 @@ func (b basic) AdvanceJobStage(ctx context.Context, id uuid.UUID, stage queries.
 }
 
 func (b basic) SetJobText(ctx context.Context, id uuid.UUID, text string) error {
-	ctxTimeout, cancel := context.WithTimeout(ctx, b.Config.OperationTimeout)
+	timeout, cancel := context.WithTimeout(ctx, b.Config.OperationTimeout)
 	defer cancel()
-	err := b.Queries.SetTextKey(ctxTimeout, queries.SetTextKeyParams{
+	err := b.Queries.SetTextKey(timeout, queries.SetTextKeyParams{
 		ID:      sqlc.ToUUID(id),
 		TextKey: sqlc.ToTEXT(text),
 	})
@@ -44,12 +51,12 @@ func (b basic) SetJobText(ctx context.Context, id uuid.UUID, text string) error 
 	return nil
 }
 
-func (b basic) SetJobStage(ctx context.Context, id uuid.UUID, stage queries.JobStage) error {
+func (b basic) SetJobStage(ctx context.Context, id uuid.UUID, stage string) error {
 	timeout, cancel := context.WithTimeout(ctx, b.Config.OperationTimeout)
 	defer cancel()
 	err := b.Queries.SetJobStage(timeout, queries.SetJobStageParams{
 		ID:    sqlc.ToUUID(id),
-		Stage: stage,
+		Stage: queries.JobStage(stage),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to set job state: %w", err)
@@ -74,13 +81,6 @@ func (b basic) FailJob(ctx context.Context, fail repo.Fail) error {
 		return fmt.Errorf("fail to fail job: %w", err)
 	}
 	return nil
-}
-
-func NewRepo(deps dependencies.AppDeps) repo.Job {
-	return basic{
-		Queries: deps.Queries,
-		Config:  deps.Config.DB,
-	}
 }
 
 func (b basic) CreateJob(ctx context.Context, file s3.File) (uuid.UUID, error) {

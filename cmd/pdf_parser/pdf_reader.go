@@ -2,8 +2,8 @@ package main
 
 import (
 	errs "Alice088/essentia/pkg/errors"
-	"Alice088/essentia/pkg/pdf_reader"
-	"Alice088/essentia/pkg/size"
+	"Alice088/essentia/pkg/pdf_parser"
+	"Alice088/essentia/pkg/real_size"
 	"bytes"
 	"encoding/json"
 	"errors"
