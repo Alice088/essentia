@@ -1,10 +1,10 @@
-package storage
+package s3
 
 import (
 	"context"
 )
 
-type Storage interface {
+type S3 interface {
 	FilesManager
 }
 
