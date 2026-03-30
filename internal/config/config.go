@@ -7,6 +7,7 @@ type Config struct {
 }
 
 type SM struct {
-	Ticker        time.Duration `env:"SM_TICKER,required"`
-	JobBatchCount int           `env:"SM_JOB_BATCH_COUNT,required"`
+	Ticker         time.Duration `env:"SM_TICKER,required"`
+	JobBatchCount  int           `env:"SM_JOB_BATCH_COUNT,required"`
+	JobPullTimeout time.Duration `env:"SM_JOB_PULL_TIMEOUT,required"`
 }

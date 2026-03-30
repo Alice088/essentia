@@ -7,6 +7,6 @@ import (
 )
 
 type Storage interface {
-	GetProcessableJobs(context.Context) []Job
+	GetProcessableJobs(ctx context.Context, limit int) []Job
 	InvalidJob(context.Context, uuid.UUID) error
 }
