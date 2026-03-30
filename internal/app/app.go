@@ -64,7 +64,7 @@ func Run(cfg env.Config) {
 	r := chi.NewRouter()
 	restapi.NewRouter(r, deps)
 
-	parser := workers.Parser{
+	parser := workers.RemoverUselessJobs{
 		Repo:      deps.JobRepo,
 		PDFParser: pdf_parser.NewParser(cfg.Workers.Parsing),
 		Logger:    logger,

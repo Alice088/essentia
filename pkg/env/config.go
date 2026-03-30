@@ -49,3 +49,8 @@ type WorkersWriteTasks struct {
 	ContextTimeout time.Duration `env:"WORKERS_WRITE_TASKS_CONTEXT_TIMEOUT,required"`
 	ErrorSleep     time.Duration `env:"WORKERS_WRITE_TASKS_ERROR_SLEEP,required"`
 }
+
+type WorkersRemoveUselessJobs struct {
+	Ticker         time.Duration `env:"WORKERS_REMOVE_USELESS_TICKER,required"`
+	ContextTimeout time.Duration `env:"WORKERS_REMOVE_USELESS_CONTEXT_TIMEOUT,required"`
+}

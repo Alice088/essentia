@@ -23,8 +23,14 @@ type File struct {
 	Size   int64
 }
 
+type ListOptions struct {
+	Prefix string
+}
+
 type FilesManager interface {
 	Put(ctx context.Context, file File) error
 	FGet(ctx context.Context, object Object, tmp pdf_parser.TMP) error
 	Delete(ctx context.Context, object Object) error
+	List(ctx context.Context, opts ListOptions) ([]Object, error)
+	DeleteBatch(ctx context.Context, object []Object) error
 }
