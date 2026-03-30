@@ -24,63 +24,71 @@ func (sm StreamManager) Managing(ctx context.Context) {
 	go func() {
 		defer sm.wg.Done()
 		var jobs []storage.Job
+		sem := make(chan struct{}, 1)
 
 		t := time.NewTicker(sm.Config.Ticker)
 
-		//todo add sem and sem cfg
 		select {
 		case <-ctx.Done():
-			sm.Logger.Info("Stop SM")
+			sm.Logger.Info("Stop SM", "cause", ctx.Err())
 		case <-t.C:
-			jobs = sm.Storage.GetProcessableJobs(ctx)
+			sem <- struct{}{}
+			jobs = sm.Storage.GetProcessableJobs(ctx, sm.Config.JobBatchCount)
 
 			var readyJobs []pipeline.Job
 			jobsCh := make(chan pipeline.Job)
 
-			go func() {
-				wg := &sync.WaitGroup{}
-				wg.Add(len(jobs))
-
-				for _, job := range jobs {
-					go func() {
-						defer wg.Done()
-						find, err := sm.S3.Find(ctx, job.ID.String(), string(job.Stage))
-						if err != nil {
-							sm.Logger.Error("Failed to find blob", "job", job.ID.String(), "bucket", string(job.Stage))
-							err = sm.Storage.InvalidJob(ctx, job.ID)
-							if err != nil {
-								sm.Logger.Error("Failed to invalid job", "job", job.ID.String())
-							}
-							return
-						}
-
-						jobsCh <- pipeline.Job{
-							JobID: job.ID,
-							Input: find,
-							Stage: string(job.Stage),
-						}
-					}()
-				}
-
-				wg.Wait()
-				close(jobsCh)
-			}()
+			jobsCh = sm.PrepareJobs(jobs, ctx, jobsCh)
 
 			for job := range jobsCh {
 				readyJobs = append(readyJobs, job)
 			}
 
 			for _, job := range readyJobs {
-				go func() {
-					timeout, cancel := context.WithTimeout(ctx, 5*time.Second) //todo add stream pull timeout
-					defer cancel()
-
-					select {
-					case <-timeout.Done():
-					case sm.Streams[job.Stage] <- job:
-					}
-				}()
+				go sm.PullJobs(ctx, job)
 			}
 		}
 	}()
+}
+
+func (sm StreamManager) PullJobs(ctx context.Context, job pipeline.Job) {
+	timeout, cancel := context.WithTimeout(ctx, sm.Config.JobPullTimeout)
+	defer cancel()
+
+	select {
+	case <-timeout.Done():
+	case sm.Streams[job.Stage] <- job:
+	}
+}
+
+func (sm StreamManager) PrepareJobs(jobs []storage.Job, ctx context.Context, jobsCh chan pipeline.Job) chan pipeline.Job {
+	go func() {
+		wg := &sync.WaitGroup{}
+		wg.Add(len(jobs))
+
+		for _, job := range jobs {
+			go func() {
+				defer wg.Done()
+				find, err := sm.S3.Find(ctx, job.ID.String(), string(job.Stage))
+				if err != nil {
+					sm.Logger.Error("Failed to find blob", "job", job.ID.String(), "bucket", string(job.Stage))
+					err = sm.Storage.InvalidJob(ctx, job.ID)
+					if err != nil {
+						sm.Logger.Error("Failed to invalid job", "job", job.ID.String())
+					}
+					return
+				}
+
+				jobsCh <- pipeline.Job{
+					JobID: job.ID,
+					Input: find,
+					Stage: string(job.Stage),
+				}
+			}()
+		}
+
+		wg.Wait()
+		close(jobsCh)
+	}()
+	return jobsCh
 }
