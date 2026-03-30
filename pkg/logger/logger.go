@@ -1,7 +1,7 @@
 package xlogger
 
 import (
-	"Alice088/essentia/pkg/env"
+	"Alice088/essentia/internal/config"
 	"io"
 	"log/slog"
 	"os"
@@ -9,7 +9,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-func New(cfg env.Config) *(slog.Logger) {
+func New(cfg config.Config) *(slog.Logger) {
 	logRotator := &lumberjack.Logger{
 		Filename:   "./logs/logs.log",
 		MaxSize:    10,
