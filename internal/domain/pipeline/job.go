@@ -9,5 +9,6 @@ type Blob = string
 
 type Job struct {
 	JobID uuid.UUID
+	Stage string
 	Input []Blob
 }
