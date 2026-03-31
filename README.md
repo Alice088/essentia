@@ -1,4 +1,4 @@
 
 <div align="center">
-<img src="./static/gophers_run.png" >
+<img src="./static/img.png" >
 </div>
