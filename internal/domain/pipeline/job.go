@@ -1,6 +1,10 @@
 package pipeline
 
-import "github.com/google/uuid"
+import (
+	"Alice088/essentia/internal/domain/llm"
+
+	"github.com/google/uuid"
+)
 
 // Blob - an index of a blob file
 //
@@ -8,7 +12,8 @@ import "github.com/google/uuid"
 type Blob = string
 
 type Job struct {
-	JobID uuid.UUID
-	Stage string
-	Input []Blob
+	JobID      uuid.UUID
+	Stage      string
+	Input      []Blob
+	LLMContext llm.Context
 }
