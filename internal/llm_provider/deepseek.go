@@ -2,6 +2,7 @@ package llm_provider
 
 import (
 	"Alice088/essentia/pkg/currency"
+	"Alice088/essentia/pkg/retry"
 	"context"
 	"encoding/json"
 	"errors"
@@ -41,7 +42,16 @@ func (d *DeepSeekProvider) GetBalance(ctx context.Context) (currency.USD, error)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+d.apiKey)
-	res, err := d.client.Do(req)
+
+	var res *http.Response
+	err = retry.Exponential(ctx, retry.ExponentialOpts{
+		Seconds: 2,
+		Tries:   3,
+		Fn: func(ctx context.Context) error {
+			res, err = d.client.Do(req)
+			return err
+		},
+	})
 	if err != nil {
 		return 0, err
 	}

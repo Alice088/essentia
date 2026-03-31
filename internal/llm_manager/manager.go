@@ -111,6 +111,17 @@ func (m *Manager) UpdateBalance() error {
 	return nil
 }
 
+// SetBalanceCacheDuration sets the cache duration for balance updates.
+// This is primarily for testing.
+func (m *Manager) SetBalanceCacheDuration(d time.Duration) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.balanceCacheDuration = d
+}
+
 func (m *Manager) maybeUpdateBalance() {
 	if m.balanceProvider == nil {
 		return
@@ -133,6 +144,10 @@ func (m *Manager) stateLocked() llm.LimitState {
 	// Check balance limits if configured and provider exists
 	if (m.maxBal > 0 || m.softBal > 0) && m.balanceProvider != nil {
 		m.maybeUpdateBalance()
+		// If balance was never updated, skip limit checks
+		if m.lastBalanceUpdate.IsZero() {
+			return llm.LimitStateNormal
+		}
 		balance := m.currentBalance
 		if m.maxBal > 0 && balance <= m.maxBal {
 			maxReached = true
