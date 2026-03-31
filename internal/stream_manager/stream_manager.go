@@ -1,4 +1,4 @@
-package steam_manager
+package stream_manager
 
 import (
 	"Alice088/essentia/internal/config"
@@ -12,7 +12,7 @@ import (
 )
 
 type StreamManager struct {
-	Config  config.SM
+	Config  config.StreamManager
 	Streams map[string]chan pipeline.Job
 	Logger  *slog.Logger
 	Storage storage.Storage
@@ -20,33 +20,37 @@ type StreamManager struct {
 	wg      *sync.WaitGroup
 }
 
-func (sm StreamManager) Managing(ctx context.Context) {
+func (sm StreamManager) Manage(ctx context.Context) {
 	go func() {
 		defer sm.wg.Done()
 		var jobs []storage.Job
 		sem := make(chan struct{}, 1)
+		jobsCh := make(chan pipeline.Job)
 
 		t := time.NewTicker(sm.Config.Ticker)
+		defer t.Stop()
 
 		select {
 		case <-ctx.Done():
-			sm.Logger.Info("Stop SM", "cause", ctx.Err())
+			sm.Logger.Info("Stop StreamManager", "cause", ctx.Err())
 		case <-t.C:
 			sem <- struct{}{}
-			jobs = sm.Storage.GetProcessableJobs(ctx, sm.Config.JobBatchCount)
+			go func() {
+				defer func() { <-sem }()
+				jobs = sm.Storage.GetProcessableJobs(ctx, sm.Config.JobBatchCount)
 
-			var readyJobs []pipeline.Job
-			jobsCh := make(chan pipeline.Job)
+				var readyJobs []pipeline.Job
 
-			jobsCh = sm.PrepareJobs(jobs, ctx, jobsCh)
+				sm.PrepareJobs(jobs, ctx, jobsCh)
 
-			for job := range jobsCh {
-				readyJobs = append(readyJobs, job)
-			}
+				for job := range jobsCh {
+					readyJobs = append(readyJobs, job)
+				}
 
-			for _, job := range readyJobs {
-				go sm.PullJobs(ctx, job)
-			}
+				for _, job := range readyJobs {
+					go sm.PullJobs(ctx, job)
+				}
+			}()
 		}
 	}()
 }
@@ -61,7 +65,7 @@ func (sm StreamManager) PullJobs(ctx context.Context, job pipeline.Job) {
 	}
 }
 
-func (sm StreamManager) PrepareJobs(jobs []storage.Job, ctx context.Context, jobsCh chan pipeline.Job) chan pipeline.Job {
+func (sm StreamManager) PrepareJobs(jobs []storage.Job, ctx context.Context, jobsCh chan pipeline.Job) {
 	go func() {
 		wg := &sync.WaitGroup{}
 		wg.Add(len(jobs))
@@ -90,5 +94,4 @@ func (sm StreamManager) PrepareJobs(jobs []storage.Job, ctx context.Context, job
 		wg.Wait()
 		close(jobsCh)
 	}()
-	return jobsCh
 }

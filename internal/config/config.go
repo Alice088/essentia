@@ -3,10 +3,11 @@ package config
 import "time"
 
 type Config struct {
-	Env string `env:"ENV,required"`
+	Env           string `env:"ENV,required"`
+	StreamManager StreamManager
 }
 
-type SM struct {
+type StreamManager struct {
 	Ticker         time.Duration `env:"SM_TICKER,required"`
 	JobBatchCount  int           `env:"SM_JOB_BATCH_COUNT,required"`
 	JobPullTimeout time.Duration `env:"SM_JOB_PULL_TIMEOUT,required"`

@@ -1,4 +1,4 @@
-package real_size
+package size
 
 type KiB int
 
