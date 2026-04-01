@@ -18,7 +18,6 @@ type StreamManager struct {
 }
 
 type LLMManager struct {
-	Enabled          bool         `env:"LLM_MANAGER_ENABLED" envDefault:"false"`
 	SoftBalanceLimit currency.USD `env:"LLM_SOFT_BALANCE_LIMIT" envDefault:"0"`
 	MaxBalanceLimit  currency.USD `env:"LLM_MAX_BALANCE_LIMIT" envDefault:"0"`
 	Provider         string       `env:"LLM_PROVIDER" envDefault:""`

@@ -13,7 +13,7 @@ const (
 var ParsingTotal = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "parsing_total",
-		Help: "Total number of PDF parsing tasks",
+		Help: "total number of PDF parsing tasks",
 	},
 	[]ParsingStatus{"status"},
 )

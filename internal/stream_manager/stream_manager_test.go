@@ -143,7 +143,7 @@ func TestStreamManager_LLMSoftStop_BlocksNewJobs(t *testing.T) {
 		MaxBalanceLimit:  0.10,
 	}
 	provider := &llm_manager.StubBalanceProvider{Balance: 0.30} // Below soft limit
-	llmManager := llm_manager.NewWithBalance(llmCfg, provider)
+	llmManager := llm_manager.New(llmCfg, provider)
 	if err := llmManager.UpdateBalance(); err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func TestStreamManager_LLMMaxStop_EmergencyShutdown(t *testing.T) {
 		MaxBalanceLimit:  0.10,
 	}
 	provider := &llm_manager.StubBalanceProvider{Balance: 0.05} // Below max limit
-	llmManager := llm_manager.NewWithBalance(llmCfg, provider)
+	llmManager := llm_manager.New(llmCfg, provider)
 	if err := llmManager.UpdateBalance(); err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +261,7 @@ func TestStreamManager_LLMNormal_JobsDispatched(t *testing.T) {
 		MaxBalanceLimit:  0.10,
 	}
 	provider := &llm_manager.StubBalanceProvider{Balance: 1.00} // Above soft limit
-	llmManager := llm_manager.NewWithBalance(llmCfg, provider)
+	llmManager := llm_manager.New(llmCfg, provider)
 	if err := llmManager.UpdateBalance(); err != nil {
 		t.Fatal(err)
 	}
@@ -362,7 +362,7 @@ func TestStreamManager_PullJobs_RespectsLLMState(t *testing.T) {
 				MaxBalanceLimit:  0.10,
 			}
 			provider := &llm_manager.StubBalanceProvider{Balance: tt.balance}
-			llmManager := llm_manager.NewWithBalance(llmCfg, provider)
+			llmManager := llm_manager.New(llmCfg, provider)
 			if err := llmManager.UpdateBalance(); err != nil {
 				t.Fatal(err)
 			}

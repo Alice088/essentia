@@ -66,7 +66,7 @@ func Run(cfg config.Config) {
 			"provider", cfg.LLMManager.Provider,
 		)
 
-		var provider llm_manager.BalanceProvider
+		var provider llm_manager.LLM
 		switch cfg.LLMManager.Provider {
 		case "deepseek":
 			if cfg.LLMManager.ApiKey == "" {
@@ -82,7 +82,7 @@ func Run(cfg config.Config) {
 			logger.Error("Unknown LLM provider", "provider", cfg.LLMManager.Provider)
 		}
 
-		llmManager = llm_manager.NewWithBalance(cfg.LLMManager, provider)
+		llmManager = llm_manager.New(cfg.LLMManager, provider)
 
 		// Perform initial balance update
 		if provider != nil {

@@ -8,14 +8,14 @@ import (
 // StubBalanceProvider returns a fixed balance for testing.
 // Example usage:
 //
-//	provider := &StubBalanceProvider{Balance: 10.0}
+//	provider := &StubBalanceProvider{balance: 10.0}
 //	cfg := config.LLMManager{
 //	    Enabled:            true,
 //	    SoftBalanceLimit:   0.50,
 //	    MaxBalanceLimit:    0.10,
 //	    Provider:           "stub",
 //	}
-//	manager := llm_manager.NewWithBalance(cfg, provider)
+//	manager := llm_manager.New(cfg, provider)
 //
 // Example with DeepSeek provider:
 //
@@ -24,7 +24,7 @@ import (
 //	    cfg.ApiKey,
 //	    cfg.ApiURL,
 //	)
-//	manager := llm_manager.NewWithBalance(cfg, deepseekProvider)
+//	manager := llm_manager.New(cfg, deepseekProvider)
 type StubBalanceProvider struct {
 	Balance float64
 }

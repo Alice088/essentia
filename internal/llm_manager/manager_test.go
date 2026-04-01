@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// mockBalanceProvider is a test double for BalanceProvider.
+// mockBalanceProvider is a test double for LLM.
 type mockBalanceProvider struct {
 	mu          sync.RWMutex
 	balance     float64
@@ -62,7 +62,7 @@ func TestManager_NewWithBalance(t *testing.T) {
 		MaxBalanceLimit:  0.10,
 	}
 	provider := &mockBalanceProvider{balance: 1.0}
-	manager := NewWithBalance(cfg, provider)
+	manager := New(cfg, provider)
 
 	if !manager.Enabled() {
 		t.Error("Expected manager to be enabled")
@@ -87,7 +87,7 @@ func TestManager_StateTransitions(t *testing.T) {
 			maxLimit:      0.10,
 			balance:       1.00,
 			expectedState: llm.LimitStateNormal,
-			description:   "Balance above soft limit → Normal",
+			description:   "balance above soft limit → Normal",
 		},
 		{
 			name:          "soft_stop_at_limit",
@@ -95,7 +95,7 @@ func TestManager_StateTransitions(t *testing.T) {
 			maxLimit:      0.10,
 			balance:       0.50,
 			expectedState: llm.LimitStateSoftStop,
-			description:   "Balance equals soft limit → SoftStop",
+			description:   "balance equals soft limit → SoftStop",
 		},
 		{
 			name:          "soft_stop_below_limit",
@@ -103,7 +103,7 @@ func TestManager_StateTransitions(t *testing.T) {
 			maxLimit:      0.10,
 			balance:       0.30,
 			expectedState: llm.LimitStateSoftStop,
-			description:   "Balance below soft limit → SoftStop",
+			description:   "balance below soft limit → SoftStop",
 		},
 		{
 			name:          "max_stop_at_limit",
@@ -111,7 +111,7 @@ func TestManager_StateTransitions(t *testing.T) {
 			maxLimit:      0.10,
 			balance:       0.10,
 			expectedState: llm.LimitStateMaxStop,
-			description:   "Balance equals max limit → MaxStop",
+			description:   "balance equals max limit → MaxStop",
 		},
 		{
 			name:          "max_stop_below_limit",
@@ -119,7 +119,7 @@ func TestManager_StateTransitions(t *testing.T) {
 			maxLimit:      0.10,
 			balance:       0.05,
 			expectedState: llm.LimitStateMaxStop,
-			description:   "Balance below max limit → MaxStop",
+			description:   "balance below max limit → MaxStop",
 		},
 		{
 			name:          "no_limits_set",
@@ -171,9 +171,9 @@ func TestManager_StateTransitions(t *testing.T) {
 				MaxBalanceLimit:  tt.maxLimit,
 			}
 			provider := &mockBalanceProvider{balance: tt.balance}
-			manager := NewWithBalance(cfg, provider)
+			manager := New(cfg, provider)
 
-			// Update balance to trigger state calculation
+			// UpdateCurrent balance to trigger state calculation
 			if err := manager.UpdateBalance(); err != nil {
 				t.Fatalf("UpdateBalance failed: %v", err)
 			}
@@ -193,7 +193,7 @@ func TestManager_Disabled(t *testing.T) {
 		MaxBalanceLimit:  0.10,
 	}
 	provider := &mockBalanceProvider{balance: 0.05} // Below max limit
-	manager := NewWithBalance(cfg, provider)
+	manager := New(cfg, provider)
 
 	snap := manager.Snapshot()
 	if snap.State != llm.LimitStateNormal {
@@ -248,7 +248,7 @@ func TestManager_TokenCounting(t *testing.T) {
 		MaxBalanceLimit:  1.0,
 	}
 	provider := &mockBalanceProvider{balance: 20.0}
-	manager := NewWithBalance(cfg, provider)
+	manager := New(cfg, provider)
 
 	// Initial snapshot
 	snap0 := manager.Snapshot()
@@ -334,7 +334,7 @@ func TestManager_ProviderError(t *testing.T) {
 		MaxBalanceLimit:  0.10,
 	}
 	provider := &mockBalanceProvider{err: context.Canceled}
-	manager := NewWithBalance(cfg, provider)
+	manager := New(cfg, provider)
 
 	// UpdateBalance should return error
 	err := manager.UpdateBalance()
@@ -345,10 +345,10 @@ func TestManager_ProviderError(t *testing.T) {
 		t.Errorf("Expected error %v, got %v", context.Canceled, err)
 	}
 
-	// State should remain Normal (balance not updated)
+	// balance should remain Normal (balance not updated)
 	snap := manager.Snapshot()
 	if snap.State != llm.LimitStateNormal {
-		t.Errorf("State should remain Normal after provider error, got %s", snap.State)
+		t.Errorf("balance should remain Normal after provider error, got %s", snap.State)
 	}
 }
 
@@ -359,7 +359,7 @@ func TestManager_BalanceCaching(t *testing.T) {
 		MaxBalanceLimit:  0.10,
 	}
 	provider := &mockBalanceProvider{balance: 1.0}
-	manager := NewWithBalance(cfg, provider)
+	manager := New(cfg, provider)
 
 	// Reduce cache duration for testing
 	manager.SetBalanceCacheDuration(100 * time.Millisecond)
@@ -380,7 +380,7 @@ func TestManager_BalanceCaching(t *testing.T) {
 		t.Errorf("Snapshot should not call provider (cached), got %d calls", callsAfterSnapshot)
 	}
 	if snap1.State != llm.LimitStateNormal {
-		t.Errorf("State should be Normal with balance 1.0, got %s", snap1.State)
+		t.Errorf("balance should be Normal with balance 1.0, got %s", snap1.State)
 	}
 
 	// Change provider balance (but cache is fresh)
@@ -391,7 +391,7 @@ func TestManager_BalanceCaching(t *testing.T) {
 		t.Errorf("Cache should prevent call, got %d calls", provider.getCallCount())
 	}
 	if snap2.State != llm.LimitStateNormal {
-		t.Errorf("State should still be Normal (cached balance 1.0), got %s", snap2.State)
+		t.Errorf("balance should still be Normal (cached balance 1.0), got %s", snap2.State)
 	}
 
 	// Wait for cache to expire
@@ -401,7 +401,7 @@ func TestManager_BalanceCaching(t *testing.T) {
 		t.Errorf("After cache expiry, provider should be called once, got %d", provider.getCallCount())
 	}
 	if snap3.State != llm.LimitStateMaxStop {
-		t.Errorf("State should be MaxStop with balance 0.05, got %s", snap3.State)
+		t.Errorf("balance should be MaxStop with balance 0.05, got %s", snap3.State)
 	}
 }
 
@@ -412,7 +412,7 @@ func TestManager_ConcurrentAccess(t *testing.T) {
 		MaxBalanceLimit:  0.10,
 	}
 	provider := &mockBalanceProvider{balance: 1.0}
-	manager := NewWithBalance(cfg, provider)
+	manager := New(cfg, provider)
 
 	var wg sync.WaitGroup
 	goroutines := 10

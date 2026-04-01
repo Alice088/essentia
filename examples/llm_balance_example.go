@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	log.Println("=== LLM Balance Management Example ===")
+	log.Println("=== LLM balance Management Example ===")
 	config.Load("./.env")
 
 	// Example 1: Using StubBalanceProvider for testing
@@ -24,7 +24,7 @@ func main() {
 		Provider:         "stub",
 	}
 	stubProvider := &llm_manager.StubBalanceProvider{Balance: 1.0} // $1.00 balance
-	manager := llm_manager.NewWithBalance(cfg, stubProvider)
+	manager := llm_manager.New(cfg, stubProvider)
 
 	// Check initial state
 	snap := manager.Snapshot()
@@ -35,14 +35,14 @@ func main() {
 	stubProvider.Balance = 0.30
 	manager.UpdateBalance()
 	snap = manager.Snapshot()
-	log.Printf("   State after drop: %s, balance: $%.2f", snap.State, manager.CurrentBalance())
+	log.Printf("   balance after drop: %s, balance: $%.2f", snap.State, manager.CurrentBalance())
 
 	// Simulate balance dropping below max limit
 	log.Println("\n   Simulating balance drop to $0.05...")
 	stubProvider.Balance = 0.05
 	manager.UpdateBalance()
 	snap = manager.Snapshot()
-	log.Printf("   State after drop: %s, balance: $%.2f", snap.State, manager.CurrentBalance())
+	log.Printf("   balance after drop: %s, balance: $%.2f", snap.State, manager.CurrentBalance())
 
 	// Example 2: Using DeepSeekProvider (requires API key)
 	log.Println("\n2. Testing with DeepSeekProvider (if API key available)")
@@ -56,9 +56,9 @@ func main() {
 	}
 	if deepseekCfg.ApiKey != "" {
 		deepseekProvider := llm_provider.NewDeepSeekProvider(deepseekCfg.ApiKey, deepseekCfg.ApiURL)
-		deepseekManager := llm_manager.NewWithBalance(deepseekCfg, deepseekProvider)
+		deepseekManager := llm_manager.New(deepseekCfg, deepseekProvider)
 
-		// Update balance from API
+		// UpdateCurrent balance from API
 		if err := deepseekManager.UpdateBalance(); err != nil {
 			log.Printf("   Failed to update balance: %v", err)
 		} else {
@@ -79,7 +79,7 @@ func main() {
 		Provider:         "stub",
 	}
 	stubProvider3 := &llm_manager.StubBalanceProvider{Balance: 15.0}
-	manager3 := llm_manager.NewWithBalance(cfg3, stubProvider3)
+	manager3 := llm_manager.New(cfg3, stubProvider3)
 
 	// Consume some tokens
 	llmCtx := llm.Context{
@@ -93,13 +93,13 @@ func main() {
 	stubProvider3.Balance = 8.00
 	manager3.UpdateBalance()
 	snap3 = manager3.Snapshot()
-	log.Printf("   Balance $8.00 (< soft $10.00): state=%s", snap3.State)
+	log.Printf("   balance $8.00 (< soft $10.00): state=%s", snap3.State)
 
 	// Drop balance below max limit
 	stubProvider3.Balance = 1.00
 	manager3.UpdateBalance()
 	snap3 = manager3.Snapshot()
-	log.Printf("   Balance $1.00 (< max $2.00): state=%s", snap3.State)
+	log.Printf("   balance $1.00 (< max $2.00): state=%s", snap3.State)
 
 	// Example 4: Caching behavior
 	log.Println("\n4. Demonstrating balance caching")
@@ -110,7 +110,7 @@ func main() {
 		Provider:         "stub",
 	}
 	stubProvider4 := &llm_manager.StubBalanceProvider{Balance: 10.0}
-	manager4 := llm_manager.NewWithBalance(cfg4, stubProvider4)
+	manager4 := llm_manager.New(cfg4, stubProvider4)
 	manager4.UpdateBalance() // initial update
 
 	log.Printf("   Initial balance: $%.2f", manager4.CurrentBalance())
