@@ -1,6 +1,10 @@
 package components
 
 import (
+	"os/exec"
+	"strings"
+	"time"
+
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -13,10 +17,22 @@ type Input struct {
 	width            int
 	focused          bool
 	hasError         bool
+	maxLength        int
+	errorMsg         string
+	errorTimer       tea.Cmd
 	style            lipgloss.Style
 	errorStyle       lipgloss.Style
 	cursorStyle      lipgloss.Style
 	placeholderStyle lipgloss.Style
+	errorTextStyle   lipgloss.Style
+}
+
+// clearErrorMsg is sent to clear the error after a delay
+type clearErrorMsg struct{}
+
+// pasteMsg is sent when clipboard paste is requested
+type pasteMsg struct {
+	text string
 }
 
 // NewInput creates a new Input component
@@ -27,6 +43,7 @@ func NewInput() *Input {
 		cursorPos:   0,
 		focused:     false,
 		hasError:    false,
+		maxLength:   70, // Limit for paste from clipboard
 		style: lipgloss.NewStyle().
 			Padding(0, 1).
 			Border(lipgloss.RoundedBorder()).
@@ -40,12 +57,33 @@ func NewInput() *Input {
 		placeholderStyle: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#718096")).
 			Faint(true),
+		errorTextStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#C53030")). // red color
+			Align(lipgloss.Center).
+			MarginTop(1),
 	}
 }
 
 // Init initializes the input component
 func (i *Input) Init() tea.Cmd {
 	return nil
+}
+
+// pasteFromClipboardCmd returns a command to read from clipboard
+func (i *Input) pasteFromClipboardCmd() tea.Cmd {
+	return func() tea.Msg {
+		// Try to read from clipboard using xclip (Linux)
+		cmd := exec.Command("xclip", "-selection", "clipboard", "-o")
+		output, err := cmd.Output()
+		if err != nil {
+			// Failed to read clipboard
+			return pasteMsg{text: ""}
+		}
+
+		// Clean up newlines and other whitespace
+		text := strings.TrimSpace(string(output))
+		return pasteMsg{text: text}
+	}
 }
 
 // Update handles messages for the input component
@@ -61,29 +99,35 @@ func (i *Input) Update(msg tea.Msg) (*Input, tea.Cmd) {
 			if i.cursorPos > 0 {
 				i.cursorPos--
 				i.hasError = false
+				i.errorMsg = ""
 			}
 		case "right":
 			if i.cursorPos < len(i.text) {
 				i.cursorPos++
 				i.hasError = false
+				i.errorMsg = ""
 			}
 		case "backspace":
 			if i.cursorPos > 0 {
 				i.text = i.text[:i.cursorPos-1] + i.text[i.cursorPos:]
 				i.cursorPos--
 				i.hasError = false
+				i.errorMsg = ""
 			}
 		case "delete":
 			if i.cursorPos < len(i.text) {
 				i.text = i.text[:i.cursorPos] + i.text[i.cursorPos+1:]
 				i.hasError = false
+				i.errorMsg = ""
 			}
 		case "home":
 			i.cursorPos = 0
 			i.hasError = false
+			i.errorMsg = ""
 		case "end":
 			i.cursorPos = len(i.text)
 			i.hasError = false
+			i.errorMsg = ""
 		case "ctrl+w":
 			// Delete word before cursor
 			if i.cursorPos > 0 {
@@ -94,20 +138,69 @@ func (i *Input) Update(msg tea.Msg) (*Input, tea.Cmd) {
 				i.text = i.text[:start] + i.text[i.cursorPos:]
 				i.cursorPos = start
 				i.hasError = false
+				i.errorMsg = ""
 			}
+		case "ctrl+v":
+			// Handle clipboard paste with 70 character limit
+			return i, i.pasteFromClipboardCmd()
 		default:
 			if len(msg.String()) == 1 && msg.Type == tea.KeyRunes {
 				r := msg.Runes[0]
 				// Skip control characters
 				if r >= 32 && r <= 126 {
-					i.text = i.text[:i.cursorPos] + string(r) + i.text[i.cursorPos:]
-					i.cursorPos++
-					i.hasError = false
+					// Check max length (70 characters limit for paste compatibility)
+					if len(i.text) < i.maxLength {
+						i.text = i.text[:i.cursorPos] + string(r) + i.text[i.cursorPos:]
+						i.cursorPos++
+						i.hasError = false
+						i.errorMsg = ""
+					} else {
+						// Text too long - set error
+						i.hasError = true
+						i.errorMsg = "too long"
+						// Start timer to clear error after 2 seconds
+						i.errorTimer = tea.Tick(2*time.Second, func(time.Time) tea.Msg {
+							return clearErrorMsg{}
+						})
+						return i, i.errorTimer
+					}
 				}
 			}
 		}
+	case pasteMsg:
+		// Handle paste from clipboard
+		pastedText := msg.text
+
+		// Apply 70 character limit - truncate if too long
+		if len(pastedText) > i.maxLength {
+			pastedText = pastedText[:i.maxLength]
+			// Set error message for truncated paste
+			i.hasError = true
+			i.errorMsg = "too long"
+			// Start timer to clear error after 2 seconds
+			i.errorTimer = tea.Tick(2*time.Second, func(time.Time) tea.Msg {
+				return clearErrorMsg{}
+			})
+			return i, i.errorTimer
+		} else {
+			i.hasError = false
+			i.errorMsg = ""
+		}
+
+		// Insert at cursor position
+		i.text = i.text[:i.cursorPos] + pastedText + i.text[i.cursorPos:]
+		i.cursorPos += len(pastedText)
+	case clearErrorMsg:
+		// Clear the error state after timer expires
+		i.hasError = false
+		i.errorMsg = ""
+		i.errorTimer = nil
 	}
 
+	// Return any pending error timer
+	if i.errorTimer != nil {
+		return i, i.errorTimer
+	}
 	return i, nil
 }
 
@@ -168,29 +261,39 @@ func (i *Input) View() string {
 	}
 
 	// Apply style - check if we should show error state
-	var result string
+	var inputView string
 
 	if i.hasError {
 		// Show error style with red border
-		result = i.errorStyle.Width(i.width).Render(view)
+		inputView = i.errorStyle.Width(i.width).Render(view)
 		if i.focused {
-			result = i.errorStyle.
+			inputView = i.errorStyle.
 				BorderForeground(lipgloss.Color("#C53030")).
 				Width(i.width).
 				Render(view)
 		}
 	} else {
 		// Show normal style
-		result = i.style.Width(i.width).Render(view)
+		inputView = i.style.Width(i.width).Render(view)
 		if i.focused {
-			result = i.style.
+			inputView = i.style.
 				BorderForeground(lipgloss.Color("#FF6B35")).
 				Width(i.width).
 				Render(view)
 		}
 	}
 
-	return result
+	// If there's an error message, show it below the input
+	if i.errorMsg != "" {
+		errorView := i.errorTextStyle.Render(i.errorMsg)
+		return lipgloss.JoinVertical(
+			lipgloss.Center,
+			inputView,
+			errorView,
+		)
+	}
+
+	return inputView
 }
 
 // SetText sets the input text
@@ -231,9 +334,15 @@ func (i *Input) SetError(hasError bool) {
 	i.hasError = hasError
 }
 
+// GetError returns the error message if any
+func (i *Input) GetError() string {
+	return i.errorMsg
+}
+
 // Clear clears the input text and resets error state
 func (i *Input) Clear() {
 	i.text = ""
 	i.cursorPos = 0
 	i.hasError = false
+	i.errorMsg = ""
 }

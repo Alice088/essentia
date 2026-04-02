@@ -46,10 +46,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "tab", "right":
+		case "tab":
 			a.activeScreen = (a.activeScreen + 1) % len(a.screens)
 			return a, nil
-		case "shift+tab", "left":
+		case "shift+tab":
 			a.activeScreen = (a.activeScreen - 1 + len(a.screens)) % len(a.screens)
 			return a, nil
 		case "enter":

@@ -18,6 +18,7 @@ type HomeScreen struct {
 	footer     *components.Footer
 	hasFocus   bool
 	errorTimer tea.Cmd
+	errorMsg   string
 }
 
 // clearErrorMsg is sent to clear the error state after a delay
@@ -78,35 +79,26 @@ func (h *HomeScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 	case clearErrorMsg:
 		// Clear the error state after timer expires
 		h.input.SetError(false)
+			h.errorMsg = ""
 
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+e":
-			// Validate and load file
 			path := h.input.GetText()
 
 			if path != "" {
-				if h.validateFilePath(path) {
-					// Set status to "wrk" (working)
-					h.footer.GetStatus().SetWorking()
-					// Clear input for valid path
+				if ok, errMsg := h.validateFilePath(path); ok {
 					h.input.Clear()
 					// TODO: Actually load the file
 					return h, nil
+				} else {
+					h.input.SetError(true)
+					h.errorMsg = errMsg
+					cmds = append(cmds, h.clearErrorCmd())
 				}
-
-				// Set status to "err" (error)
-				h.footer.GetStatus().SetError("Invalid file path")
-				// Set input error state
-				h.input.SetError(true)
-				// Start timer to clear error after 2 seconds
-				cmds = append(cmds, h.clearErrorCmd())
 			} else {
-				// Set status to "err" (error)
-				h.footer.GetStatus().SetError("No file path")
-				// Set input error state
 				h.input.SetError(true)
-				// Start timer to clear error after 2 seconds
+				h.errorMsg = "Please enter a file path"
 				cmds = append(cmds, h.clearErrorCmd())
 			}
 		case "ctrl+c", "q":
@@ -161,12 +153,29 @@ func (h *HomeScreen) View() string {
 		Render(h.input.View())
 
 	// Combine all content
-	content := lipgloss.JoinVertical(
-		lipgloss.Center,
-		asciiStyle.Render(asciiArt),
-		quoteStyle.Render(quote),
-		inputContainer,
-	)
+	var content string
+	if h.errorMsg != "" {
+		// Error message style
+		errorStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#C53030")). // red color
+			Align(lipgloss.Center).
+			MarginTop(1)
+		errorView := errorStyle.Render(h.errorMsg)
+		content = lipgloss.JoinVertical(
+			lipgloss.Center,
+			asciiStyle.Render(asciiArt),
+			quoteStyle.Render(quote),
+			inputContainer,
+			errorView,
+		)
+	} else {
+		content = lipgloss.JoinVertical(
+			lipgloss.Center,
+			asciiStyle.Render(asciiArt),
+			quoteStyle.Render(quote),
+			inputContainer,
+		)
+	}
 
 	// Place content in the middle (above footer)
 	// Reserve space for footer (3 lines)
@@ -192,12 +201,12 @@ func (h *HomeScreen) View() string {
 	)
 }
 
-// validateFilePath checks if a file exists
-func (h *HomeScreen) validateFilePath(path string) bool {
+// validateFilePath checks if a file exists and returns error message
+func (h *HomeScreen) validateFilePath(path string) (bool, string) {
 	if _, err := os.Stat(path); err != nil {
-		return false
+		return false, "File not found or cannot be accessed"
 	}
-	return true
+	return true, ""
 }
 
 // SetFocus sets whether this screen has focus
