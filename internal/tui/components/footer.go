@@ -6,17 +6,17 @@ import (
 
 // Footer represents a footer component with instructions and status
 type Footer struct {
-	instructions string
-	status       *Status
-	width        int
-	style        lipgloss.Style
+	instructions      string
+	status            *Status
+	width             int
+	style             lipgloss.Style
 	instructionsStyle lipgloss.Style
 }
 
 // NewFooter creates a new Footer component
 func NewFooter() *Footer {
 	return &Footer{
-		instructions: "Tab/→ Next • Shift+Tab/← Prev • Enter Confirm • Q/Ctrl+C Quit",
+		instructions: "Tab/→ Next • Shift+Tab/← Prev • Ctrl+E Confirm • Q/Ctrl+C Quit",
 		status:       NewStatus(),
 		width:        0,
 		style: lipgloss.NewStyle().
@@ -46,7 +46,7 @@ func (f *Footer) View() string {
 	rightPart := f.status.View()
 
 	// Calculate widths
-	statusWidth := 10 // fixed width for status
+	statusWidth := 10                              // fixed width for status
 	instructionsWidth := f.width - statusWidth - 2 // minus separator spaces
 
 	// Truncate instructions if too long
