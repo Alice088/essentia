@@ -59,41 +59,37 @@ func Run(cfg config.Config) {
 
 	// 1. Initialize LLM Manager with balance limits
 	var llmManager *llm_manager.Manager
-	if cfg.LLMManager.Enabled {
-		logger.Info("LLM Manager enabled",
-			"soft_limit", cfg.LLMManager.SoftBalanceLimit,
-			"max_limit", cfg.LLMManager.MaxBalanceLimit,
-			"provider", cfg.LLMManager.Provider,
-		)
+	logger.Info("LLM Manager enabled",
+		"soft_limit", cfg.LLMManager.SoftBalanceLimit,
+		"max_limit", cfg.LLMManager.MaxBalanceLimit,
+		"provider", cfg.LLMManager.Provider,
+	)
 
-		var provider llm_manager.LLM
-		switch cfg.LLMManager.Provider {
-		case "deepseek":
-			if cfg.LLMManager.ApiKey == "" {
-				logger.Error("DeepSeek provider selected but LLM_API_KEY not set")
-			} else {
-				provider = llm_provider.NewDeepSeekProvider(cfg.LLMManager.ApiKey, cfg.LLMManager.ApiURL)
-				logger.Info("Created DeepSeek balance provider")
-			}
-		case "stub", "":
-			provider = &llm_manager.StubBalanceProvider{Balance: 100.0}
-			logger.Info("Using stub balance provider", "balance", 100.0)
-		default:
-			logger.Error("Unknown LLM provider", "provider", cfg.LLMManager.Provider)
+	var provider llm_manager.LLM
+	switch cfg.LLMManager.Provider {
+	case "deepseek":
+		if cfg.LLMManager.ApiKey == "" {
+			logger.Error("DeepSeek provider selected but LLM_API_KEY not set")
+		} else {
+			provider = llm_provider.NewDeepSeekProvider(cfg.LLMManager.ApiKey, cfg.LLMManager.ApiURL)
+			logger.Info("Created DeepSeek balance provider")
 		}
+	case "stub", "":
+		provider = &llm_manager.StubBalanceProvider{Balance: 100.0}
+		logger.Info("Using stub balance provider", "balance", 100.0)
+	default:
+		logger.Error("Unknown LLM provider", "provider", cfg.LLMManager.Provider)
+	}
 
-		llmManager = llm_manager.New(cfg.LLMManager, provider)
+	llmManager = llm_manager.New(cfg.LLMManager, provider)
 
-		// Perform initial balance update
-		if provider != nil {
-			if err := llmManager.UpdateBalance(); err != nil {
-				logger.Error("Failed to update LLM balance", "err", err)
-			} else {
-				logger.Info("Initial LLM balance", "balance", llmManager.CurrentBalance())
-			}
+	// Perform initial balance update
+	if provider != nil {
+		if err := llmManager.UpdateBalance(); err != nil {
+			logger.Error("Failed to update LLM balance", "err", err)
+		} else {
+			logger.Info("Initial LLM balance", "balance", llmManager.CurrentBalance())
 		}
-	} else {
-		logger.Info("LLM Manager disabled")
 	}
 
 	// 2. Initialize storage and S3 (using stubs for demonstration)
