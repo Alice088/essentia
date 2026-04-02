@@ -69,3 +69,8 @@ func (m *MetricsScreen) View() string {
 		content,
 	)
 }
+
+// SetFocus sets whether this screen has focus
+func (m *MetricsScreen) SetFocus(hasFocus bool) {
+	// Metrics screen doesn't need special focus handling yet
+}

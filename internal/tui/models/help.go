@@ -70,3 +70,8 @@ func (h *HelpScreen) View() string {
 		content,
 	)
 }
+
+// SetFocus sets whether this screen has focus
+func (h *HelpScreen) SetFocus(hasFocus bool) {
+	// Help screen doesn't need special focus handling yet
+}

@@ -28,6 +28,11 @@ func NewApp() *App {
 		activeScreen: 0,
 	}
 
+	// Set initial focus on the first screen
+	if len(app.screens) > 0 {
+		app.screens[0].SetFocus(true)
+	}
+
 	return app
 }
 
@@ -73,18 +78,14 @@ func (a *App) View() string {
 	// Header with navigation
 	header := a.renderHeader()
 
-	// Active screen content
+	// Active screen content (screen should include its own footer)
 	content := a.screens[a.activeScreen].View()
 
-	// Footer
-	footer := a.renderFooter()
-
-	// Combine everything
+	// Combine header and content
 	view := lipgloss.JoinVertical(
 		lipgloss.Top,
 		header,
 		content,
-		footer,
 	)
 
 	return view

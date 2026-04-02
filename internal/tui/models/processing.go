@@ -69,3 +69,8 @@ func (p *ProcessingScreen) View() string {
 		content,
 	)
 }
+
+// SetFocus sets whether this screen has focus
+func (p *ProcessingScreen) SetFocus(hasFocus bool) {
+	// Processing screen doesn't need special focus handling yet
+}

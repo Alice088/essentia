@@ -7,4 +7,5 @@ type Screen interface {
 	Init() tea.Cmd
 	Update(msg tea.Msg) (Screen, tea.Cmd)
 	View() string
+	SetFocus(hasFocus bool)
 }
